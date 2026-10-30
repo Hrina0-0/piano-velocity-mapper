@@ -1,5 +1,9 @@
 ﻿# 钢琴力度重映射工具
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?logo=windows)](https://learn.microsoft.com/zh-cn/windows/)
+[![Python](https://img.shields.io/badge/Python-3.10--3.13-blue?logo=python)](https://www.python.org/)
+
 把任何"力度打不满"的 MIDI 键盘发出的力度**实时**重映射到 1–127，经 loopMIDI
 虚拟端口输出。Cubase / FL Studio（以及任何其他软件）把 MIDI 输入源切到
 loopMIDI 即可，**所有 DAW 和音源统一生效**。
@@ -11,6 +15,24 @@ loopMIDI 即可，**所有 DAW 和音源统一生效**。
 ```
 键盘 (USB-MIDI)  ->  app.py（GUI）+ engine.py  ->  loopMIDI Port  ->  宿主
 ```
+
+## ⬇️ 下载
+
+到 **[Releases](../../releases)** 页面下载 `PianoVelocityMapper.exe`：
+
+- **绿色版**（推荐）：单个 exe，双击即用，**不需要装 Python**
+- **源码版**：完整源码，自己跑 `setup.cmd` 装环境
+
+两种都用同一个 `config.json` 存设置，绿色版就放在 exe 旁边。
+
+<details>
+<summary>不想下载 exe？三步跑起来</summary>
+
+1. 装 Python **3.10 ~ 3.13**（勾选 "Add Python to PATH"；不要装 3.14）
+2. 装 [loopMIDI](https://www.tobias-erichsen.de/software/loopmidi.html) 并创建一个端口
+3. 双击 `setup.cmd`（只做一次），然后用桌面快捷方式启动
+
+</details>
 
 > 每把琴的力度曲线不一样，所以第一次用请在窗口里用「采用建议值」重新标定一次。
 
@@ -289,6 +311,15 @@ start_mapper.bat
 Python 虚拟环境（.venv 子文件夹）。
 
 ## 11. 打包分发（给别人用）
+
+**给 GitHub 打 tag 就行**：仓库里带了 GitHub Actions 工作流，推一个 `v*` 标签，
+它会自动在 Windows 上跑 PyInstaller 打包，并把 exe 附到对应的 Release 上。
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+```
+
+本地打包（不想用 CI 时）：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File make_release.ps1

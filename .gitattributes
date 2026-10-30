@@ -1,0 +1,12 @@
+# 让 .bat/.cmd 在仓库里保持 CRLF（cmd.exe 在 CRLF 下最稳），
+# 其余文本文件统一 LF，避免各处出现无意义的整文件 diff。
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.py text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.txt text eol=lf
+*.ico binary
+*.png binary

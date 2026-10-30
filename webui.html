@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>力度重映射控制台</title>
+<style>
+  :root {
+    --bg: #f3f4f6;
+    --card: #ffffff;
+    --line: #e5e7eb;
+    --text: #111827;
+    --muted: #6b7280;
+    --blue: #2563eb;
+    --red: #ef4444;
+    --green: #16a34a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    line-height: 1.6;
+  }
+  header {
+    background: linear-gradient(120deg, #1e3a8a, #2563eb);
+    color: #fff;
+    padding: 18px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  header h1 { margin: 0; font-size: 20px; }
+  .status {
+    font-size: 13px;
+    background: rgba(255,255,255,.18);
+    padding: 4px 12px;
+    border-radius: 999px;
+  }
+  .status.ok { background: rgba(22,163,74,.9); }
+  .status.err { background: rgba(239,68,68,.9); }
+  main {
+    max-width: 900px;
+    margin: 20px auto 40px;
+    padding: 0 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 18px 20px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.05);
+  }
+  .card.wide { grid-column: 1 / -1; }
+  .card h2 {
+    margin: 0 0 4px;
+    font-size: 15px;
+    color: var(--blue);
+  }
+  .card .sub { margin: 0 0 12px; font-size: 12px; color: var(--muted); }
+  .slider-row { display: flex; align-items: center; gap: 12px; }
+  .slider-row input[type=range] { flex: 1; accent-color: var(--blue); }
+  .slider-row .val {
+    min-width: 56px;
+    text-align: center;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--blue);
+    background: #eff6ff;
+    border-radius: 8px;
+    padding: 2px 8px;
+  }
+  .hint { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+  .suggest {
+    margin-top: 10px;
+    font-size: 13px;
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    color: #065f46;
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+  .suggest button {
+    background: var(--green);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 3px 10px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .suggest button:hover { filter: brightness(1.08); }
+  canvas {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+  }
+  .port-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .port-row label { min-width: 90px; font-size: 13px; color: var(--muted); }
+  .port-row select {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 13px;
+    background: #fff;
+  }
+  .live { display: flex; flex-direction: column; gap: 8px; }
+  .big {
+    text-align: center;
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--blue);
+  }
+  .big .dim { color: var(--muted); font-size: 16px; font-weight: 400; }
+  .bar-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+  .bar-row .lbl { min-width: 52px; text-align: right; }
+  .bar-bg {
+    flex: 1;
+    height: 14px;
+    background: #f3f4f6;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .bar { height: 100%; width: 0; border-radius: 999px; transition: width .12s ease; }
+  .bar.raw { background: #9ca3af; }
+  .bar.map { background: var(--blue); }
+  .bar-row .num { min-width: 34px; text-align: right; font-weight: 600; color: var(--text); }
+  .stats {
+    margin-top: 12px;
+    font-size: 13px;
+    color: var(--muted);
+    border-top: 1px dashed var(--line);
+    padding-top: 10px;
+  }
+  .port-status-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .port-status-row .lbl { min-width: 96px; color: var(--muted); }
+  .port-status-row .pname {
+    flex: 1;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .badge {
+    font-size: 12px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .badge.ok { background: #dcfce7; color: #166534; }
+  .badge.err { background: #fee2e2; color: #991b1b; }
+  .badge.warn { background: #fef3c7; color: #92400e; }
+  .badge.wait { background: #e5e7eb; color: #374151; }
+  .console {
+    margin-top: 8px;
+    background: #111827;
+    color: #d1d5db;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    border-radius: 8px;
+    padding: 8px 10px;
+    height: 150px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .console .t { color: #6b7280; margin-right: 6px; }
+  .applybar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #fff;
+    border-top: 1px solid var(--line);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    box-shadow: 0 -2px 8px rgba(0,0,0,.06);
+    z-index: 10;
+  }
+  .applybar .info { font-size: 13px; color: var(--muted); }
+  .applybar .info b { color: var(--text); }
+  .applybar button {
+    background: var(--blue);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 22px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .applybar button:disabled { background: #9ca3af; cursor: not-allowed; }
+  body { padding-bottom: 76px; }
+  .toast {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    background: var(--green);
+    color: #fff;
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+    opacity: 0;
+    transition: opacity .3s ease;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+  @media (max-width: 760px) {
+    main { grid-template-columns: 1fr; }
+    .card.wide { grid-column: auto; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🎹 力度重映射控制台</h1>
+  <div id="status" class="status">连接中…</div>
+</header>
+
+<main>
+  <section class="card">
+    <h2>① 最大力度</h2>
+    <p class="sub">max_input_velocity · 你琴实际能砸到的最大力度</p>
+    <div class="slider-row">
+      <input type="range" id="maxIn" min="2" max="127" step="1" value="80">
+      <span class="val" id="maxInVal">80</span>
+    </div>
+    <p class="hint">调小 → 更响、更敏感；调大 → 更轻、更贴近原样。边弹边拖，立刻生效。</p>
+    <div class="suggest" id="suggestRow" hidden>
+      你砸到的最大 raw = <b id="rawMax">-</b>，建议把最大力度设为
+      <button id="useSug">设为 <span id="sugVal">-</span></button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>② 力度曲线</h2>
+    <p class="sub">curve_exponent · 中间段力度的分配手感</p>
+    <div class="slider-row">
+      <input type="range" id="curveExp" min="0.2" max="3" step="0.01" value="1">
+      <span class="val" id="curveExpVal">1.00</span>
+    </div>
+    <p class="hint" id="curveHint"></p>
+  </section>
+
+  <section class="card wide">
+    <h2>力度曲线可视化</h2>
+    <p class="sub">蓝色 = 当前曲线（拖动上方滑块实时变化）；灰色虚线 = 线性（exp=1）参考；红点 = 最近一次弹奏</p>
+    <canvas id="curve" width="900" height="400"></canvas>
+  </section>
+
+  <section class="card wide">
+    <h2>运行状态</h2>
+    <p class="sub">钢琴端口是否可用会实时显示；被宿主占用时，下面的“应用并保存”会禁用</p>
+    <div class="port-status-row">
+      <span class="lbl">输入（钢琴）</span>
+      <span class="pname" id="inName">-</span>
+      <span class="badge wait" id="inBadge">检测中…</span>
+    </div>
+    <div class="port-status-row">
+      <span class="lbl">输出（loopMIDI）</span>
+      <span class="pname" id="outName">-</span>
+      <span class="badge wait" id="outBadge">检测中…</span>
+    </div>
+    <div class="console" id="console"></div>
+  </section>
+
+  <section class="card">
+    <h2>③ 端口选择</h2>
+    <p class="sub">改完自动重连，不用重启工具</p>
+    <div class="port-row">
+      <label>输入（键盘）</label>
+      <select id="inputPort"></select>
+    </div>
+    <div class="port-row">
+      <label>输出（loopMIDI）</label>
+      <select id="outputPort"></select>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>④ 实时力度</h2>
+    <p class="sub">最近一次音符与累计范围（只统计转发模式）</p>
+    <div class="live">
+      <div class="big" id="lastNote"><span class="dim">等待弹奏…</span></div>
+      <div class="bar-row">
+        <span class="lbl">原始 raw</span>
+        <div class="bar-bg"><div class="bar raw" id="rawBar"></div></div>
+        <span class="num" id="rawVal">-</span>
+      </div>
+      <div class="bar-row">
+        <span class="lbl">映射后</span>
+        <div class="bar-bg"><div class="bar map" id="mapBar"></div></div>
+        <span class="num" id="mapVal">-</span>
+      </div>
+    </div>
+    <div class="stats">
+      已弹 <b id="notes">0</b> 个音符 ｜ raw <b id="rawRange">-</b> ｜ mapped <b id="mapRange">-</b>
+    </div>
+  </section>
+</main>
+
+<div class="applybar">
+  <div class="info" id="applyInfo">正在检查钢琴端口…</div>
+  <button id="applyBtn" disabled>应用并保存</button>
+</div>
+
+<div class="toast" id="toast">已应用 ✓</div>
+
+<script>
+  "use strict";
+  const $ = id => document.getElementById(id);
+  let cfg = null;
+  let lastSample = null;
+  let pushTimer = null;
+
+  async function getJSON(url) {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(r.status);
+    return r.json();
+  }
+  async function postJSON(url, obj) {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(obj),
+    });
+    if (!r.ok) throw new Error(r.status);
+    return r.json();
+  }
+
+  function setStatus(text, cls) {
+    const el = $("status");
+    el.textContent = text;
+    el.className = "status" + (cls ? " " + cls : "");
+  }
+  function toast() {
+    const el = $("toast");
+    el.classList.add("show");
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.classList.remove("show"), 1200);
+  }
+
+  function mapVel(v, maxIn, exp) {
+    if (v <= 0) return v;
+    if (v >= maxIn) return 127;
+    return Math.max(1, Math.min(127, Math.round(1 + 126 * Math.pow((v - 1) / (maxIn - 1), exp))));
+  }
+
+  function curveHint(exp) {
+    if (Math.abs(exp - 1) < 0.02) return "线性：均匀拉伸，最忠实于你的手感";
+    if (exp > 1) return "高力度段更陡：轻弹更轻、重弹更响，力度层次拉得更开";
+    return "低力度段更陡：轻弹也较快变响，弱音段更敏感";
+  }
+
+  function draw() {
+    const canvas = $("curve");
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    const maxIn = Math.max(2, parseInt($("maxIn").value, 10) || 80);
+    const exp = Math.max(0.01, parseFloat($("curveExp").value) || 1);
+    const padL = 52, padR = 20, padT = 20, padB = 42;
+    const pw = W - padL - padR, ph = H - padT - padB;
+    const X = v => padL + pw * (v - 1) / (maxIn - 1);
+    const Y = m => padT + ph * (1 - (m - 1) / 126);
+
+    // 网格
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "#eef0f3";
+    [1, 32, 64, 96, 127].forEach(m => {
+      ctx.beginPath(); ctx.moveTo(padL, Y(m)); ctx.lineTo(W - padR, Y(m)); ctx.stroke();
+    });
+    const xTicks = [1];
+    for (let i = 1; i <= 4; i++) xTicks.push(Math.max(1, Math.round(1 + (maxIn - 1) * i / 4)));
+    if (xTicks[xTicks.length - 1] !== maxIn) xTicks.push(maxIn);
+    xTicks.forEach(v => {
+      ctx.beginPath(); ctx.moveTo(X(v), padT); ctx.lineTo(X(v), H - padB); ctx.stroke();
+    });
+
+    // 坐标轴文字
+    ctx.font = "12px sans-serif";
+    ctx.fillStyle = "#6b7280";
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    [1, 32, 64, 96, 127].forEach(m => ctx.fillText(m, padL - 7, Y(m)));
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    xTicks.forEach(v => ctx.fillText(v, X(v), H - padB + 6));
+    ctx.fillStyle = "#374151";
+    ctx.fillText("原始力度 (raw)", padL + pw / 2, H - 14);
+    ctx.save();
+    ctx.translate(12, padT + ph / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("映射后 (1–127)", 0, 0);
+    ctx.restore();
+
+    // 线性参考线（灰色虚线）
+    ctx.setLineDash([6, 6]);
+    ctx.strokeStyle = "#9ca3af";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let v = 1; v <= maxIn; v += 0.5) {
+      const x = X(v), y = Y(mapVel(v, maxIn, 1));
+      if (v === 1) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 当前曲线（蓝色）
+    ctx.strokeStyle = "#2563eb";
+    ctx.lineWidth = 3;
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    for (let v = 1; v <= maxIn; v += 0.2) {
+      const x = X(v), y = Y(mapVel(v, maxIn, exp));
+      if (v === 1) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // 最近一次弹奏（红点）
+    if (lastSample) {
+      const x = X(Math.min(lastSample.raw, maxIn));
+      const y = Y(lastSample.mapped);
+      ctx.fillStyle = "#ef4444";
+      ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // 图例
+    ctx.font = "12px sans-serif";
+    ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.fillStyle = "#2563eb";
+    ctx.fillRect(padL + 10, padT + 10, 22, 3);
+    ctx.fillStyle = "#374151";
+    ctx.fillText("当前曲线", padL + 38, padT + 12);
+    ctx.setLineDash([6, 6]);
+    ctx.strokeStyle = "#9ca3af";
+    ctx.beginPath(); ctx.moveTo(padL + 10, padT + 30); ctx.lineTo(padL + 32, padT + 30); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#374151";
+    ctx.fillText("线性参考 (exp=1)", padL + 38, padT + 32);
+  }
+
+  function currentBody() {
+    return {
+      max_input_velocity: parseInt($("maxIn").value, 10),
+      curve_exponent: parseFloat($("curveExp").value),
+      input_port_substring: $("inputPort").value,
+      output_port: $("outputPort").value,
+    };
+  }
+
+  function schedulePush() {
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(async () => {
+      try {
+        cfg = await postJSON("/api/config", currentBody());
+        toast();
+      } catch (e) { /* 下次滑块变化会重试 */ }
+    }, 250);
+  }
+
+  function fillSelect(sel, names, current, isInput) {
+    const list = names.slice();
+    if (!list.includes(current)) list.unshift(current + (isInput ? "（当前）" : ""));
+    sel.innerHTML = "";
+    list.forEach(n => {
+      const opt = document.createElement("option");
+      opt.value = n;
+      opt.textContent = n;
+      sel.appendChild(opt);
+    });
+    sel.value = current;
+  }
+
+  async function loadConfig() {
+    cfg = await getJSON("/api/config");
+    $("maxIn").value = cfg.max_input_velocity;
+    $("maxInVal").textContent = cfg.max_input_velocity;
+    $("curveExp").value = cfg.curve_exponent;
+    $("curveExpVal").textContent = Number(cfg.curve_exponent).toFixed(2);
+    $("curveHint").textContent = curveHint(cfg.curve_exponent);
+    const p = await getJSON("/api/ports");
+    fillSelect($("inputPort"), p.inputs, cfg.input_port_substring, true);
+    fillSelect($("outputPort"), p.outputs, cfg.output_port, false);
+    draw();
+  }
+
+  $("maxIn").addEventListener("input", () => {
+    $("maxInVal").textContent = $("maxIn").value;
+    draw();
+    schedulePush();
+  });
+  $("curveExp").addEventListener("input", () => {
+    $("curveExpVal").textContent = parseFloat($("curveExp").value).toFixed(2);
+    $("curveHint").textContent = curveHint(parseFloat($("curveExp").value));
+    draw();
+    schedulePush();
+  });
+  $("inputPort").addEventListener("change", schedulePush);
+  $("outputPort").addEventListener("change", schedulePush);
+  $("useSug").addEventListener("click", () => {
+    const v = parseInt($("sugVal").textContent, 10);
+    if (!isNaN(v)) {
+      $("maxIn").value = v;
+      $("maxInVal").textContent = v;
+      draw();
+      schedulePush();
+    }
+  });
+
+  async function pollStats() {
+    try {
+      const s = await getJSON("/api/stats");
+      setStatus("运行中 · 弹奏中实时调整", "ok");
+      if (s.last) {
+        lastSample = s.last;
+        $("lastNote").innerHTML =
+          "音符 " + s.last.note +
+          ' <span class="dim">' + s.last.raw + " → " + s.last.mapped + "</span>";
+        $("rawVal").textContent = s.last.raw;
+        $("mapVal").textContent = s.last.mapped;
+        $("rawBar").style.width = Math.min(100, s.last.raw / 127 * 100) + "%";
+        $("mapBar").style.width = Math.min(100, s.last.mapped / 127 * 100) + "%";
+      }
+      $("notes").textContent = s.notes;
+      $("rawRange").textContent = s.raw_min != null ? s.raw_min + "–" + s.raw_max : "–";
+      $("mapRange").textContent = s.map_min != null ? s.map_min + "–" + s.map_max : "–";
+      if (s.suggested != null) {
+        $("suggestRow").hidden = false;
+        $("rawMax").textContent = s.suggested;
+        $("sugVal").textContent = s.suggested;
+      } else {
+        $("suggestRow").hidden = true;
+      }
+      draw();
+    } catch (e) {
+      setStatus("与工具失去连接，请检查工具窗口", "err");
+    }
+  }
+
+  let statusState = { input_open: false, output_open: false, input_error: null, output_error: null };
+
+  function badgeFromOpen(open, err) {
+    if (open) return { cls: "ok", text: "已连接 · 可用" };
+    if (err === "occupied") return { cls: "err", text: "被占用" };
+    if (err === "missing") return { cls: "warn", text: "未找到" };
+    return { cls: "wait", text: "连接中…" };
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function renderConsole(messages) {
+    const el = $("console");
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
+    el.innerHTML = messages.map(m =>
+      '<span class="t">[' + m.t + "]</span>" + escapeHtml(m.text)
+    ).join("\n");
+    if (nearBottom) el.scrollTop = el.scrollHeight;
+  }
+
+  function updateApply() {
+    const s = statusState;
+    const btn = $("applyBtn");
+    const info = $("applyInfo");
+    if (s.input_open) {
+      btn.disabled = false;
+      info.innerHTML = "钢琴可用，滑块改动已实时生效，点按钮把设置保存下来";
+    } else if (s.input_error === "occupied") {
+      btn.disabled = true;
+      info.innerHTML = "<b>钢琴端口被占用</b>：请先在宿主里停用键盘直连（或关闭另一个工具窗口），本页会自动恢复";
+    } else if (s.input_error === "missing") {
+      btn.disabled = true;
+      info.innerHTML = "<b>未找到钢琴</b>：请确认键盘已连接、驱动正常";
+    } else {
+      btn.disabled = true;
+      info.innerHTML = "正在连接钢琴…";
+    }
+  }
+
+  async function pollStatus() {
+    try {
+      const s = await getJSON("/api/status");
+      statusState = s;
+      const ib = badgeFromOpen(s.input_open, s.input_error);
+      const ob = badgeFromOpen(s.output_open, s.output_error);
+      $("inBadge").className = "badge " + ib.cls;
+      $("inBadge").textContent = ib.text;
+      $("outBadge").className = "badge " + ob.cls;
+      $("outBadge").textContent = ob.text;
+      if (cfg) {
+        $("inName").textContent = s.input_name || cfg.input_port_substring;
+        $("outName").textContent = s.output_name || cfg.output_port;
+      }
+      renderConsole(s.messages || []);
+      updateApply();
+    } catch (e) { /* 下次轮询再试 */ }
+  }
+
+  $("applyBtn").addEventListener("click", async () => {
+    try {
+      cfg = await postJSON("/api/config", currentBody());
+      toast();
+      $("applyInfo").innerHTML = "已保存 ✓ 设置已写入 config.json";
+    } catch (e) { /* ignore */ }
+  });
+
+  loadConfig().then(() => {
+    setStatus("运行中 · 弹奏中实时调整", "ok");
+  }).catch(() => setStatus("无法读取配置", "err"));
+  setInterval(pollStats, 200);
+  setInterval(pollStatus, 500);
+  pollStatus();
+</script>
+</body>
+</html>

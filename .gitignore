@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# PyInstaller
+build/
+dist/
+*.manifest
+
+# 本地配置与界面偏好（每台机器不一样，不进仓库）
+ui_prefs.json
+
+# 打包产物
+release/
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+
+# 系统
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# 临时/预览产物
+*.log

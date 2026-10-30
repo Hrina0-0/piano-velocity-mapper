@@ -38,7 +38,7 @@ except Exception:  # pragma: no cover - 老 Python 没有 reconfigure
 def _python_exe() -> str:
     """用哪个 Python 打包。
 
-    优先用「当前正在跑的这个解释器」——本地是 .venv\Scripts\python.exe，
+    优先用「当前正在跑的这个解释器」——本地是 .venv/Scripts/python.exe，
     GitHub Actions 上是 runner 自带的 python（依赖已经装在它里面了）。
     不要再强制要求 .venv 存在，否则 CI 一定挂。
     """

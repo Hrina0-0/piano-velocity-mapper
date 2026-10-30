@@ -106,6 +106,27 @@ def note_name(n: int) -> str:
     return f"{NOTE_NAMES[n % 12]}{n // 12 - 1}"
 
 
+def _first_real_port(names: List[str]) -> str:
+    """从端口列表里挑第一个「真实设备」（跳过虚拟 MIDI 口）。
+
+    首次运行时用来自动选输入口：虚拟口（例如 loopMIDI Port）不该被
+    当成键盘接进来。
+    """
+    if not names:
+        return ""
+    try:
+        import midi_ports
+    except Exception:
+        return names[0]
+    for n in names:
+        try:
+            if not midi_ports.looks_virtual(n):
+                return n
+        except Exception:
+            return names[0]
+    return names[0]
+
+
 # --------------------------------------------------------------------------- #
 # 窗口外观（深色标题栏 / 圆角 / 应用图标）
 # --------------------------------------------------------------------------- #
@@ -933,6 +954,9 @@ class App:
 
     def __init__(self, config_path: Optional[str] = None) -> None:
         self.config_path = config_path or os.path.join(DATA_DIR, "config.json")
+        # 第一次运行（还没有 config.json）才允许自动挑端口并写回；
+        # 已有配置时绝不能因为「设备暂时没插上」就把它改掉
+        self._config_preexisting = os.path.exists(self.config_path)
         boot = io.StringIO()
         with contextlib.redirect_stdout(boot):   # pythonw 没有控制台，把提示收进日志
             cfg = vm.load_config(self.config_path)
@@ -1285,16 +1309,30 @@ class App:
         cur_in = cfg["input_port_substring"]
         # 输入端按「子串匹配」语义解析：优先显示实际连上的那个端口
         match = next((n for n in inputs if cur_in.lower() in n.lower()), "")
-        if not match:
-            match = inputs[0] if inputs else cur_in
         cur_out = cfg["output_port"]
         out_match = cur_out if cur_out in outputs else next(
-            (n for n in outputs if cur_out.lower() in n.lower()),
-            outputs[0] if outputs else cur_out)
+            (n for n in outputs if cur_out.lower() in n.lower()), "")
+
+        if not match or not out_match:
+            if self._config_preexisting:
+                # 已有配置：设备可能只是暂时没插上。保留用户原来的设置，
+                # 千万别用列表里第一个把它覆盖掉——否则键盘插上之后
+                # 工具反而连错了口。引擎会每 2 秒自己重试。
+                match = match or cur_in
+                out_match = out_match or cur_out
+            else:
+                # 第一次运行（还没有 config.json）：帮用户挑一个。
+                # 输入端挑第一个「真实设备」（跳过虚拟口），输出端保持默认
+                # （loopMIDI Port）——那本来就是用户要用的口。
+                if not match:
+                    match = _first_real_port(inputs) or (inputs[0] if inputs else cur_in)
+                if not out_match:
+                    out_match = cur_out
 
         self.in_dd.set_values(inputs, match)
         self.out_dd.set_values(outputs, out_match)
-        if initial and (match != cur_in or out_match != cur_out):
+        if initial and not self._config_preexisting and \
+                (match != cur_in or out_match != cur_out):
             self.engine.update({"input_port_substring": match, "output_port": out_match})
         self._update_port_hint()
 

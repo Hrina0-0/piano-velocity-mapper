@@ -42,6 +42,7 @@ Remove-Dir $GreenDir
 New-Item -ItemType Directory -Force -Path $GreenDir | Out-Null
 Copy-Item $Exe $GreenDir
 Copy-Item (Join-Path $Root 'docs\使用说明-绿色版.md') (Join-Path $GreenDir '使用说明.md')
+Copy-Item (Join-Path $Root 'docs\使用说明-绿色版-EN.md') (Join-Path $GreenDir 'README-EN.md')
 Copy-Item (Join-Path $Root 'make_shortcut.cmd') (Join-Path $GreenDir '创建桌面快捷方式.cmd')
 Copy-Item (Join-Path $Root 'make_shortcut.ps1') $GreenDir
 Copy-Item (Join-Path $Root 'app.ico') $GreenDir
@@ -54,10 +55,11 @@ New-Item -ItemType Directory -Force -Path $SourceDir | Out-Null
 
 $SourceFiles = @(
     'app.py', 'gui.py', 'engine.py', 'velocity_mapper.py', 'aa.py', 'tray.py',
-    'midi_ports.py', 'paths.py', 'check_ports.py', 'build_exe.py',
+    'midi_ports.py', 'paths.py', 'i18n.py', 'check_ports.py', 'build_exe.py',
     'webui.py', 'webui.html',
     'app.ico', 'requirements.txt', 'setup.cmd', 'start_mapper.bat',
-    'calibrate.bat', 'install_shortcut.py', 'build_portable.ps1', 'README.md'
+    'calibrate.bat', 'install_shortcut.py', 'build_portable.ps1', 'make_release.ps1',
+    'README.md', 'README_EN.md'
 )
 foreach ($f in $SourceFiles) {
     $src = Join-Path $Root $f
@@ -73,7 +75,15 @@ $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
     "{`n  `"close_action`": `"ask`",`n  `"minimize_to_tray`": true`n}`n",
     $utf8NoBom)
 Copy-Item (Join-Path $Root 'docs\使用说明-源码版.md') (Join-Path $SourceDir '快速开始.md')
+Copy-Item (Join-Path $Root 'docs\使用说明-源码版-EN.md') (Join-Path $SourceDir 'QUICKSTART-EN.md')
 Copy-Item (Join-Path $Root 'third_party_licenses.txt') $SourceDir
+# 详细文档 + 界面截图
+$srcDocs = Join-Path $SourceDir 'docs'
+New-Item -ItemType Directory -Force -Path $srcDocs | Out-Null
+foreach ($d in @('详细说明.md', 'DETAILS_EN.md', 'screenshot-zh.png', 'screenshot-en.png')) {
+    $p = Join-Path $Root "docs\$d"
+    if (Test-Path $p) { Copy-Item $p $srcDocs -Force }
+}
 
 # ---------- 4. 压缩 ----------
 Write-Host '==> 压缩 ...'

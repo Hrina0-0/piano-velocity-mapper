@@ -329,14 +329,15 @@ class TrayIcon:
                  on_event: Callable[[str], None]) -> None:
         self._title = title
         self._icon_path = icon_path
-        # 菜单项统一存成 (文字, 事件 id, 选项)，事件 id 为 None 表示分隔线
-        self._menu: List[Tuple[str, Optional[str], Dict[str, bool]]] = []
+        # 菜单项统一存成 [文字, 事件 id, 选项]，事件 id 为 None 表示分隔线
+        # （用 list 而不是 tuple，是为了能在运行时改文字 —— 切换界面语言时要用）
+        self._menu: List[List[Any]] = []
         for item in menu:
             label = str(item[0])
             entry_id = item[1] if len(item) > 1 else None
             opts = dict(item[2]) if len(item) > 2 and item[2] else {}
             entry_id = str(entry_id) if entry_id is not None else None
-            self._menu.append((label, entry_id, opts))
+            self._menu.append([label, entry_id, opts])
         self._on_event = on_event
 
         self._thread: Optional[threading.Thread] = None
@@ -455,6 +456,17 @@ class TrayIcon:
             if not ok:
                 logger.error("Shell_NotifyIconW(NIM_MODIFY) 返回 False，错误码 %d",
                              ctypes.get_last_error())
+
+    def set_menu_label(self, entry_id: str, label: str) -> None:
+        """改某个菜单项的文字（下次右键时生效）。
+
+        切换界面语言时用得上：托盘菜单是独立窗口，不会跟着界面重建。
+        """
+        with self._lock:
+            for item in self._menu:
+                if item[1] == entry_id:
+                    item[0] = label
+                    return
 
     def set_menu_check(self, entry_id: str, checked: bool) -> None:
         """勾选/取消某个菜单项（如「关闭时总是询问」的开关状态）。
@@ -796,9 +808,9 @@ class TrayIcon:
         if user32 is None or self._hwnd is None:
             return
         try:
-            # 菜单状态可能被 Tk 线程改（勾选态），先拿一份快照再开菜单
+            # 菜单状态可能被 Tk 线程改（勾选态、文字），先拿一份快照再开菜单
             with self._lock:
-                snapshot = list(self._menu)
+                snapshot = [list(item) for item in self._menu]
             hmenu = user32.CreatePopupMenu()
             if not hmenu:
                 return

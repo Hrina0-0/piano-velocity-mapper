@@ -34,11 +34,13 @@ from collections import deque
 from ctypes import wintypes
 from typing import Any, Dict, List, Optional, Tuple
 
+from i18n import tr, trf
+
 try:
     import mido
 except ImportError:  # pragma: no cover
-    print("缺少依赖 mido。", file=sys.stderr)
-    print("请先运行 start_mapper.bat，或手动执行:", file=sys.stderr)
+    print(tr("缺少依赖 mido。", "Missing dependency: mido."), file=sys.stderr)
+    print(tr("请先运行 start_mapper.bat，或手动执行:", "Run start_mapper.bat first, or run this by hand:"), file=sys.stderr)
     print("    python -m pip install -r requirements.txt", file=sys.stderr)
     sys.exit(2)
 
@@ -93,7 +95,7 @@ def _setup_backend() -> None:
             return
         except Exception:
             continue
-    print("错误: 没有可用的 MIDI 后端。请运行 start_mapper.bat 安装依赖。", file=sys.stderr)
+    print(tr("错误: 没有可用的 MIDI 后端。请运行 start_mapper.bat 安装依赖。", "Error: no usable MIDI backend. Run start_mapper.bat to install the dependencies."), file=sys.stderr)
     sys.exit(2)
 
 
@@ -123,7 +125,7 @@ def map_velocity(v: int, max_in: int, exp: float) -> int:
 
 
 def _warn(key: str, bad: Any, default: Any) -> None:
-    print(f"警告: 配置项 {key!r} 取值无效（{bad!r}），已使用默认值 {default!r}。")
+    print(trf(f"警告: 配置项 {key!r} 取值无效（{bad!r}），已使用默认值 {default!r}。", f"Warning: invalid value for {key!r} ({bad!r}); using the default {default!r}."))
 
 
 def validate_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
@@ -176,7 +178,7 @@ def list_input_names() -> List[str]:
     try:
         return list(mido.get_input_names())
     except Exception as exc:  # 某些情况下后端初始化会抛异常
-        print(f"警告: 读取 MIDI 输入端口失败: {exc}")
+        print(trf(f"警告: 读取 MIDI 输入端口失败: {exc}", f"Warning: failed to read the MIDI input ports: {exc}"))
         return []
 
 
@@ -184,7 +186,7 @@ def list_output_names() -> List[str]:
     try:
         return list(mido.get_output_names())
     except Exception as exc:
-        print(f"警告: 读取 MIDI 输出端口失败: {exc}")
+        print(trf(f"警告: 读取 MIDI 输出端口失败: {exc}", f"Warning: failed to read the MIDI output ports: {exc}"))
         return []
 
 
@@ -211,18 +213,18 @@ def find_output_port(name_or_substring: str) -> Optional[str]:
 def print_ports() -> None:
     ins = list_input_names()
     outs = list_output_names()
-    print("检测到的 MIDI 输入端口:")
+    print(tr("检测到的 MIDI 输入端口:", "Detected MIDI input ports:"))
     if ins:
         for i, n in enumerate(ins, 1):
             print(f"  {i}. {n}")
     else:
-        print("  （无。请确认键盘已连接、驱动正常。）")
-    print("检测到的 MIDI 输出端口:")
+        print(tr("  （无。请确认键盘已连接、驱动正常。）", "  (none — make sure the keyboard is connected and its driver is fine.)"))
+    print(tr("检测到的 MIDI 输出端口:", "Detected MIDI output ports:"))
     if outs:
         for i, n in enumerate(outs, 1):
             print(f"  {i}. {n}")
     else:
-        print("  （无。请先安装并打开 loopMIDI 创建虚拟端口。）")
+        print(tr("  （无。请先安装并打开 loopMIDI 创建虚拟端口。）", "  (none — install and open loopMIDI to create a virtual port.)"))
 
 
 class PortNotFoundError(Exception):
@@ -230,7 +232,7 @@ class PortNotFoundError(Exception):
         self.kind = kind
         self.wanted = wanted
         self.available = available
-        super().__init__(f"未找到{kind}端口: {wanted}")
+        super().__init__(trf(f"未找到{kind}端口: {wanted}", f"{kind} port not found: {wanted}"))
 
 
 class PortOccupiedError(Exception):
@@ -240,7 +242,7 @@ class PortOccupiedError(Exception):
         self.kind = kind
         self.name = name
         self.cause = cause
-        super().__init__(f"{kind}端口被占用: {name}（{cause}）")
+        super().__init__(trf(f"{kind}端口被占用: {name}（{cause}）", f"{kind} port busy: {name} ({cause})"))
 
 
 class PortConfigError(Exception):
@@ -255,21 +257,23 @@ class PortConfigError(Exception):
 def open_ports(cfg: Dict[str, Any]) -> Tuple[Any, Any]:
     in_name = find_input_port(cfg["input_port_substring"])
     if in_name is None:
-        raise PortNotFoundError("输入", cfg["input_port_substring"], list_input_names())
+        raise PortNotFoundError(tr("输入", "Input"), cfg["input_port_substring"], list_input_names())
     out_name = find_output_port(cfg["output_port"])
     if out_name is None:
-        raise PortNotFoundError("输出", cfg["output_port"], list_output_names())
+        raise PortNotFoundError(tr("输出", "Output"), cfg["output_port"], list_output_names())
     if in_name == out_name:
         # 同一个 loopMIDI 端口既当输入又当输出，音符会被自己吃掉再送回来，
         # 形成回环（而且 WinMM 下同一个设备句柄反复开关会卡住）。直接拦下。
         raise PortConfigError(
-            f"输入和输出选了同一个端口：{in_name}",
-            "把「输出」改成另一个端口（比如启动时默认的 loopMIDI Port，"
-            "输入选电钢琴的 USB 端口）。")
+            trf(f"输入和输出选了同一个端口：{in_name}", f"Input and output are set to the same port: {in_name}"),
+            tr("把「输出」改成另一个端口（比如启动时默认的 loopMIDI Port，"
+               "输入选电钢琴的 USB 端口）。",
+               "Change “Output” to a different port (the default loopMIDI Port, for"
+               "example) and set “Input” to the keyboard's USB port)."))
     try:
         in_port = mido.open_input(in_name)
     except OSError as exc:
-        raise PortOccupiedError("输入", in_name, exc) from exc
+        raise PortOccupiedError(tr("输入", "Input"), in_name, exc) from exc
     try:
         out_port = mido.open_output(out_name)
     except OSError as exc:
@@ -277,7 +281,7 @@ def open_ports(cfg: Dict[str, Any]) -> Tuple[Any, Any]:
             in_port.close()
         except Exception:
             pass
-        raise PortOccupiedError("输出", out_name, exc) from exc
+        raise PortOccupiedError(tr("输出", "Output"), out_name, exc) from exc
     return in_port, out_port
 
 
@@ -348,8 +352,8 @@ def run_forward(cfg: Dict[str, Any], verbose: bool = False,
     eng = Engine(cfg, config_path=cfg_path, verbose=verbose, console_echo=True)
 
     _emit("")
-    _emit("转发模式运行中（Ctrl+C 退出）。")
-    _emit("宿主请把 MIDI 输入源设为: " + cfg["output_port"])
+    _emit(tr("转发模式运行中（Ctrl+C 退出）。", "Forwarding mode running (Ctrl+C to quit)."))
+    _emit(tr("宿主请把 MIDI 输入源设为: ", "Set your DAW's MIDI input to: ") + cfg["output_port"])
 
     # ---- 网页控制台（命令行模式默认开启；桌面 UI 用 --no-web 跳过）----
     webui = None
@@ -366,9 +370,9 @@ def run_forward(cfg: Dict[str, Any], verbose: bool = False,
                 open_browser=os.environ.get("WEBUI_NO_BROWSER") != "1",
             )
             url = webui.start()
-            _emit(f"网页控制台已开启: {url}（浏览器已自动打开；关掉本窗口即同时退出）")
+            _emit(trf(f"网页控制台已开启: {url}（浏览器已自动打开；关掉本窗口即同时退出）", f"Web console started: {url} (the browser opened automatically; closing that window stops it too)"))
         except Exception as exc:
-            _emit(f"警告: 网页控制台启动失败（{exc}），继续使用命令行模式。")
+            _emit(trf(f"警告: 网页控制台启动失败（{exc}），继续使用命令行模式。", f"Warning: the web console failed to start ({exc}); staying in command-line mode."))
             webui = None
 
     eng.start()
@@ -377,7 +381,7 @@ def run_forward(cfg: Dict[str, Any], verbose: bool = False,
             time.sleep(0.3)
     except KeyboardInterrupt:
         _emit("")
-        _emit("已停止。")
+        _emit(tr("已停止。", "Stopped."))
     finally:
         eng.stop()
         if webui is not None:
@@ -389,33 +393,33 @@ def run_monitor(cfg: Dict[str, Any]) -> None:
     stats = {"notes": 0, "raw_min": 127, "raw_max": 1, "map_min": 127, "map_max": 1}
     last_summary = 0.0
     print()
-    print("标定模式（--monitor）：只打印，不转发。Ctrl+C 退出。")
-    print("提示: 用你最重的手法砸琴，观察 raw 的最大值，")
-    print(f"      工具会实时给出建议的 max_input_velocity（当前配置: {cfg['max_input_velocity']}）。")
+    print(tr("标定模式（--monitor）：只打印，不转发。Ctrl+C 退出。", "Calibration mode (--monitor): prints only, no forwarding. Ctrl+C to quit."))
+    print(tr("提示: 用你最重的手法砸琴，观察 raw 的最大值，", "Hint: hit the keys as hard as you can and watch the raw maximum —"))
+    print(trf(f"      工具会实时给出建议的 max_input_velocity（当前配置: {cfg['max_input_velocity']}）。", f"      the tool suggests a max_input_velocity live (currently {cfg['max_input_velocity']})."))
 
     try:
         while True:
             if in_port is None:
                 in_name = find_input_port(cfg["input_port_substring"])
                 if in_name is None:
-                    wait_msg = (f"[等待] 未找到输入端口 {cfg['input_port_substring']!r}，"
-                                f"正在每 2 秒自动重试（无需重启工具）...")
+                    wait_msg = (trf(f"[等待] 未找到输入端口 {cfg['input_port_substring']!r}，", f"[Waiting] Input port {cfg['input_port_substring']!r} not found,")
+                                + trf(f"正在每 2 秒自动重试（无需重启工具）...", f"retrying every 2 seconds (no need to restart the tool)..."))
                     _announce("wait", wait_msg)
                     time.sleep(2.0)
                     continue
                 try:
                     in_port = mido.open_input(in_name)
                 except Exception as exc:
-                    err_msg = f"[错误] 打开输入端口失败: {exc}"
+                    err_msg = trf(f"[错误] 打开输入端口失败: {exc}", f"[Error] Failed to open the input port: {exc}")
                     _announce("error", err_msg)
                     time.sleep(2.0)
                     continue
-                _announce("connect", f"[连接] {in_port.name}")
+                _announce("connect", trf(f"[连接] {in_port.name}", f"[Connected] {in_port.name}"))
 
             try:
                 msg = in_port.receive(block=False)
             except Exception as exc:
-                _announce("disconnect", f"[断开] 输入端口异常: {exc}")
+                _announce("disconnect", trf(f"[断开] 输入端口异常: {exc}", f"[Disconnected] Input port error: {exc}"))
                 close_ports(in_port, None)
                 in_port = None
                 time.sleep(2.0)
@@ -428,20 +432,20 @@ def run_monitor(cfg: Dict[str, Any]) -> None:
                 stats["raw_max"] = max(stats["raw_max"], msg.velocity)
                 stats["map_min"] = min(stats["map_min"], new_vel)
                 stats["map_max"] = max(stats["map_max"], new_vel)
-                print(f"[{_ts()}] 音符 {msg.note:>3}  raw {msg.velocity:>3}  ->  mapped {new_vel:>3}")
+                print(trf(f"[{_ts()}] 音符 {msg.note:>3}  raw {msg.velocity:>3}  ->  mapped {new_vel:>3}", f"[{_ts()}] note {msg.note:>3}  raw {msg.velocity:>3}  ->  mapped {new_vel:>3}"))
 
             now = time.time()
             if now - last_summary >= cfg["log_interval_sec"]:
                 last_summary = now
                 if stats["notes"]:
-                    print(f"[{_ts()}] 已弹 {stats['notes']} 个音符 | "
-                          f"raw {stats['raw_min']}-{stats['raw_max']} | "
-                          f"mapped {stats['map_min']}-{stats['map_max']} | "
-                          f"建议 max_input_velocity={stats['raw_max']}（当前 {cfg['max_input_velocity']}）")
+                    print(trf(f"[{_ts()}] 已弹 {stats['notes']} 个音符 | ", f"[{_ts()}] {stats['notes']} notes played | ")
+                          + f"raw {stats['raw_min']}-{stats['raw_max']} | "
+                          + f"mapped {stats['map_min']}-{stats['map_max']} | "
+                          + trf(f"建议 max_input_velocity={stats['raw_max']}（当前 {cfg['max_input_velocity']}）", f"Suggested max_input_velocity={stats['raw_max']} (current {cfg['max_input_velocity']})"))
             time.sleep(0.002)
     except KeyboardInterrupt:
         print()
-        print("已停止。")
+        print(tr("已停止。", "Stopped."))
     finally:
         close_ports(in_port, None)
 
@@ -456,17 +460,17 @@ def load_config(path: str) -> Dict[str, Any]:
             with open(path, "r", encoding="utf-8-sig") as f:
                 user = json.load(f)
             if not isinstance(user, dict):
-                print(f"警告: {path} 内容不是 JSON 对象，使用默认配置。")
+                print(trf(f"警告: {path} 内容不是 JSON 对象，使用默认配置。", f"Warning: {path} is not a JSON object; using the default config."))
                 user = {}
         except (json.JSONDecodeError, OSError) as exc:
-            print(f"警告: 无法读取 {path}（{exc}），使用默认配置。")
+            print(trf(f"警告: 无法读取 {path}（{exc}），使用默认配置。", f"Warning: cannot read {path} ({exc}); using the default config."))
             user = {}
     else:
-        print(f"提示: 未找到配置文件 {path}，将使用默认配置。")
+        print(trf(f"提示: 未找到配置文件 {path}，将使用默认配置。", f"Hint: config file {path} not found; using the default config."))
         user = {}
     cfg = validate_config(user)
     # 写成一行紧凑的摘要：JSON 原文在日志面板里会折成好几行，很难看
-    print("当前配置: 输入={} | 输出={} | 最大力度={} | 曲线={} | 日志间隔={}s".format(
+    print(tr("当前配置: 输入={} | 输出={} | 最大力度={} | 曲线={} | 日志间隔={}s", "Current config: input={} | output={} | max velocity={} | curve={} | log interval={}s").format(
         cfg["input_port_substring"], cfg["output_port"], cfg["max_input_velocity"],
         cfg["curve_exponent"], cfg["log_interval_sec"]))
     return cfg
@@ -474,25 +478,25 @@ def load_config(path: str) -> Dict[str, Any]:
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
-        description="钢琴力度重映射工具: 把键盘力度 1-max_in 实时映射到 1-127 并转发到 loopMIDI。")
+        description=tr("钢琴力度重映射工具: 把键盘力度 1-max_in 实时映射到 1-127 并转发到 loopMIDI。", "Piano Velocity Remapper: maps keyboard velocity 1-max_in to 1-127 in real time and forwards it to loopMIDI."))
     parser.add_argument(
         "--config",
         default=os.path.join(DATA_DIR, "config.json"),
-        help=f"配置文件路径（默认: {os.path.join(DATA_DIR, 'config.json')}）")
+        help=trf(f"配置文件路径（默认: {os.path.join(DATA_DIR, 'config.json')}）", f"Path to the config file (default: {os.path.join(DATA_DIR, 'config.json')})"))
     parser.add_argument(
         "--monitor", action="store_true",
-        help="标定模式: 只打印 raw -> mapped，不转发（用于测出真实最大力度）")
-    parser.add_argument("--list", action="store_true", help="仅列出 MIDI 输入/输出端口后退出")
+        help=tr("标定模式: 只打印 raw -> mapped，不转发（用于测出真实最大力度）", "Calibration mode: print raw -> mapped without forwarding (to measure the real maximum velocity)"))
+    parser.add_argument("--list", action="store_true", help=tr("仅列出 MIDI 输入/输出端口后退出", "List the MIDI input/output ports and exit"))
     parser.add_argument(
-        "--verbose", action="store_true", help="转发模式下逐音符打印力度映射")
+        "--verbose", action="store_true", help=tr("转发模式下逐音符打印力度映射", "Print the velocity mapping for every note while forwarding"))
     parser.add_argument(
         "--no-web", action="store_true",
-        help="不启动网页控制台（纯命令行转发，不自动开浏览器）")
+        help=tr("不启动网页控制台（纯命令行转发，不自动开浏览器）", "Don't start the web console (pure command-line forwarding, no browser)"))
     args = parser.parse_args(argv)
 
     if not _check_single_instance():
-        print("工具已经有一个实例在运行了，无法重复启动。")
-        print("请先关闭原来的工具窗口（或到任务管理器结束 velocity_mapper 进程），再重新启动。")
+        print(tr("工具已经有一个实例在运行了，无法重复启动。", "Another instance is already running, so this one cannot start."))
+        print(tr("请先关闭原来的工具窗口（或到任务管理器结束 velocity_mapper 进程），再重新启动。", "Close the existing window first (or end the velocity_mapper process in Task Manager), then start again."))
         return 1
 
     _setup_backend()

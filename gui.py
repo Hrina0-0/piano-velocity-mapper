@@ -55,6 +55,7 @@ import engine as eng_mod  # noqa: E402
 import velocity_mapper as vm  # noqa: E402
 
 from paths import data_dir as _data_dir, resource_dir as _resource_dir
+from i18n import get_lang, set_lang, tr, trf
 
 # 只读资源（图标等）：打包后 = exe 解包的临时目录
 SCRIPT_DIR = _resource_dir()
@@ -460,7 +461,7 @@ class Dropdown(tk.Frame):
             w.bind("<Button-1>", self._toggle)
 
     def _render(self) -> None:
-        self._btn.configure(text=self._value or "（无可用端口）",
+        self._btn.configure(text=self._value or tr("（无可用端口）", "(no ports available)"),
                             fg=TEXT if self._value else TEXT_FADE)
 
     def set_values(self, values: List[str], value: str) -> None:
@@ -638,7 +639,7 @@ class CurveView(tk.Canvas):
             if gv < mi:
                 self.create_text(X(gv), t + gh + px(9), text=str(gv), anchor="n",
                                  fill=TEXT_FADE, font=F(8, mono=True))
-        self.create_text(l + gw, t + gh + px(9), text="原始力度 →", anchor="ne",
+        self.create_text(l + gw, t + gh + px(9), text=tr("原始力度 →", "Raw velocity →"), anchor="ne",
                          fill=TEXT_FADE, font=F(8))
         if marker_c and last:
             self.create_text(marker_c[0], marker_c[1] - px(8) - px(5),
@@ -712,7 +713,7 @@ class CloseDialog(tk.Toplevel):
 
     def __init__(self, master: tk.Misc) -> None:
         super().__init__(master)
-        self.title("力度重映射")
+        self.title(tr("力度重映射", "Velocity Remapper"))
         self.configure(bg=CARD)
         self.resizable(False, False)
         self.transient(master)
@@ -723,15 +724,17 @@ class CloseDialog(tk.Toplevel):
         wrap = tk.Frame(self, bg=CARD)
         wrap.pack(fill="both", expand=True, padx=px(22), pady=px(18))
 
-        tk.Label(wrap, text="要完全退出这个工具吗？", bg=CARD, fg=TEXT,
+        tk.Label(wrap, text=tr("要完全退出这个工具吗？", "Quit this tool completely?"), bg=CARD, fg=TEXT,
                  font=F(12, "bold")).pack(anchor="w")
         tk.Label(wrap,
-                 text="是（完全退出）：力度转发立即停止。\n"
-                      "否（留在后台运行）：托盘图标常驻，转发不受影响。",
+                 text=tr("是（完全退出）：力度转发立即停止。\n"
+                         "否（留在后台运行）：托盘图标常驻，转发不受影响。",
+                         "Yes (quit completely): velocity forwarding stops immediately.\n"
+                         "No (keep it running in the background): the tray icon stays, forwarding is unaffected."),
                  bg=CARD, fg=TEXT_DIM, font=F(9), justify="left").pack(
             anchor="w", pady=(px(8), px(12)))
 
-        self._check = FlatCheck(wrap, "下次不再提示（记住这次的选择）",
+        self._check = FlatCheck(wrap, tr("下次不再提示（记住这次的选择）", "Don't ask again (remember my choice)"),
                                 command=self._on_check)
         self._check.pack(anchor="w")
 
@@ -741,9 +744,9 @@ class CloseDialog(tk.Toplevel):
 
         row = tk.Frame(wrap, bg=CARD)
         row.pack(anchor="e", pady=(px(18), 0))
-        FlatButton(row, "留在后台运行", command=self._on_tray,
+        FlatButton(row, tr("留在后台运行", "Keep running in background"), command=self._on_tray,
                    kind="accent").pack(side="right")
-        FlatButton(row, "完全退出", command=self._on_exit,
+        FlatButton(row, tr("完全退出", "Quit completely"), command=self._on_exit,
                    kind="normal").pack(side="right", padx=(px(8), 0))
 
         # 回车 = 默认按钮（蓝色那颗「留在后台运行」），Esc 也是「取消」，
@@ -769,8 +772,10 @@ class CloseDialog(tk.Toplevel):
         # 勾上就说明白「记住了去哪改」，免得用户以为永久关不掉了
         try:
             self._hint.configure(
-                text="记住了：下次点关闭直接执行。\n"
-                     "想改回来：托盘图标右键 ->「关闭时总是询问」。"
+                text=tr("记住了：下次点关闭直接执行。\n"
+                        "想改回来：托盘图标右键 ->「关闭时总是询问」。",
+                        "Remembered — next time, closing will do this directly.\n"
+                        "To undo: right-click the tray icon -> “Always ask when closing”.")
                 if self.remember else "")
         except Exception:
             pass
@@ -811,7 +816,7 @@ class PortGuideDialog(tk.Toplevel):
     def __init__(self, master: tk.Misc, message: str,
                  on_retry: Optional[Callable[[], None]] = None) -> None:
         super().__init__(master)
-        self.title("需要虚拟 MIDI 端口")
+        self.title(tr("需要虚拟 MIDI 端口", "A virtual MIDI port is required"))
         self.configure(bg=CARD)
         self.resizable(False, False)
         self.transient(master)
@@ -820,28 +825,34 @@ class PortGuideDialog(tk.Toplevel):
         wrap = tk.Frame(self, bg=CARD)
         wrap.pack(fill="both", expand=True, padx=px(22), pady=px(18))
 
-        tk.Label(wrap, text="需要一个虚拟 MIDI 端口", bg=CARD, fg=TEXT,
+        tk.Label(wrap, text=tr("需要一个虚拟 MIDI 端口", "You need a virtual MIDI port"), bg=CARD, fg=TEXT,
                  font=F(12, "bold")).pack(anchor="w")
         tk.Label(wrap, text=message, bg=CARD, fg=TEXT_DIM, font=F(9),
                  justify="left", wraplength=380).pack(
             anchor="w", pady=(px(8), px(12)))
 
         tk.Label(wrap,
-                 text="本工具要把重映射后的力度转发给 DAW，需要借助虚拟 MIDI 端口。\n"
-                      "Windows 上最常见的做法是装 loopMIDI（免费、个人使用免费）：\n\n"
-                      "  1. 打开官网下载安装\n"
-                      "  2. 打开 loopMIDI，右键托盘图标 ->「添加端口」，名字随意\n"
-                      "  3. 回到本工具把「输出」选成那个端口，DAW 里也选同一个\n\n"
-                      "装好后本工具会自动找到它，不用再重装本工具。",
+                 text=tr("本工具要把重映射后的力度转发给 DAW，需要借助虚拟 MIDI 端口。\n"
+                         "Windows 上最常见的做法是装 loopMIDI（免费、个人使用免费）：\n\n"
+                         "  1. 打开官网下载安装\n"
+                         "  2. 打开 loopMIDI，右键托盘图标 ->「添加端口」，名字随意\n"
+                         "  3. 回到本工具把「输出」选成那个端口，DAW 里也选同一个\n\n"
+                         "装好后本工具会自动找到它，不用再重装本工具。",
+                         "This tool forwards the remapped velocity to your DAW through a virtual MIDI port.\n"
+                         "On Windows the usual choice is loopMIDI (free for personal use):\n\n"
+                         "  1. Download and install it from the official site\n"
+                         "  2. Open loopMIDI, right-click its tray icon -> “Add Port”, any name\n"
+                         "  3. Back here, set “Output” to that port and pick the same one in your DAW\n\n"
+                         "Once installed, this tool finds it by itself — no need to reinstall anything."),
                  bg=CARD, fg=TEXT_DIM, font=F(9), justify="left").pack(anchor="w")
 
         row = tk.Frame(wrap, bg=CARD)
         row.pack(anchor="e", pady=(px(18), 0))
-        FlatButton(row, "重新检测", command=self._retry, kind="normal").pack(
+        FlatButton(row, tr("重新检测", "Check again"), command=self._retry, kind="normal").pack(
             side="right", padx=(px(8), 0))
-        FlatButton(row, "打开 loopMIDI 官网", command=self._open_site,
+        FlatButton(row, tr("打开 loopMIDI 官网", "Open loopMIDI site"), command=self._open_site,
                    kind="accent").pack(side="right")
-        FlatButton(row, "稍后再说", command=self._close, kind="ghost").pack(
+        FlatButton(row, tr("稍后再说", "Not now"), command=self._close, kind="ghost").pack(
             side="right", padx=(px(8), 0))
 
         self.bind("<Escape>", lambda _e: self._close())
@@ -913,7 +924,7 @@ class Pill(tk.Canvas):
         if w <= 2:
             w, h = px(120), px(26)
         fg, tint = self._COLORS.get(status, (TEXT_DIM, CARD_HI))
-        text = eng_mod.STATUS_TEXT.get(status, status)
+        text = eng_mod.status_text(status)
         self.create_rectangle(px(1), px(1), w - px(1), h - px(1), fill=tint,
                               outline="")
         # 小圆点同样走抗锯齿位图
@@ -970,7 +981,7 @@ class App:
         except Exception:
             _S = 1.0
 
-        self.root.title("钢琴力度重映射")
+        self.root.title(tr("钢琴力度重映射", "Piano Velocity Remapper"))
         self.root.configure(bg=BG)
         _apply_icon(self.root, os.path.join(SCRIPT_DIR, "app.ico"))
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -1002,6 +1013,9 @@ class App:
         # 虚拟 MIDI 端口检查（后台线程 -> 队列 -> Tk 线程）
         self._port_queue: "queue.Queue[tuple]" = queue.Queue()
         self._port_guide_shown = False
+
+        # 界面语言（默认中文，按 ui_prefs.json 里的偏好）
+        self._apply_lang_pref()
 
         self._build()
         self._fit_window()
@@ -1038,13 +1052,28 @@ class App:
         self.root.geometry(f"{w}x{h}+{max(0, (sw - w) // 2)}+{max(0, (sh - h) // 2)}")
 
     def _build(self) -> None:
-        cfg = self.engine.config()
+        """搭出整个界面。切换语言时会把容器清空再重建一次。"""
         self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(1, weight=1)
+        self.root.rowconfigure(0, weight=1)
 
-        self._header = self._build_header()
+        self._ui = tk.Frame(self.root, bg=BG)
+        self._ui.grid(row=0, column=0, sticky="nsew")
+        self._build_into(self._ui)
 
-        body = tk.Frame(self.root, bg=BG)
+    def _build_into(self, parent: tk.Misc) -> None:
+        cfg = self.engine.config()
+        parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(1, weight=1)
+
+        # 窗口标题也跟着语言走
+        try:
+            self.root.title(tr("钢琴力度重映射", "Piano Velocity Remapper"))
+        except Exception:
+            pass
+
+        self._header = self._build_header(parent)
+
+        body = tk.Frame(parent, bg=BG)
         self._body = body
         body.grid(row=1, column=0, sticky="nsew", padx=px(18), pady=(px(2), px(10)))
         # 两列等宽；上面两行等高（卡片边缘对齐），最后一行是横跨两列的日志条
@@ -1063,34 +1092,52 @@ class App:
         self._build_ports_card(body).grid(row=1, column=1, sticky="nsew",
                                           padx=(gap, 0), pady=(0, gap))
         self._build_log(body).grid(row=2, column=0, columnspan=2, sticky="ew")
-        self._statusbar = self._build_statusbar()
+        self._statusbar = self._build_statusbar(parent)
+
+    def _rebuild_ui(self) -> None:
+        """清空界面并按当前语言重建（引擎和 MIDI 连接都不受影响）。"""
+        try:
+            for child in self._ui.winfo_children():
+                child.destroy()
+            self._build_into(self._ui)
+            self._sync_ports()
+            self._reload_log()
+            self._refresh()
+        except Exception:
+            pass
 
     # ---- 顶栏 ----
-    def _build_header(self) -> tk.Frame:
-        bar = tk.Frame(self.root, bg=BG)
+    def _build_header(self, parent: tk.Misc) -> tk.Frame:
+        bar = tk.Frame(parent, bg=BG)
         bar.grid(row=0, column=0, sticky="ew", padx=px(18), pady=(px(16), px(10)))
 
         box = tk.Frame(bar, bg=BG)
         box.pack(side="left")
-        tk.Label(box, text="力度重映射", bg=BG, fg=TEXT, font=F(16, "bold")).pack(anchor="w")
-        self.subtitle = tk.Label(box, text="正在检测 MIDI 设备…", bg=BG, fg=TEXT_DIM,
+        tk.Label(box, text=tr("力度重映射", "Velocity Remapper"), bg=BG, fg=TEXT, font=F(16, "bold")).pack(anchor="w")
+        self.subtitle = tk.Label(box, text=tr("正在检测 MIDI 设备…", "Detecting MIDI devices…"), bg=BG, fg=TEXT_DIM,
                                  font=F(9))
         self.subtitle.pack(anchor="w", pady=(px(3), 0))
 
         self.pill = Pill(bar, width=120)
         self.pill.pack(side="right", anchor="e")
+
+        # 语言切换：按钮上显示「切过去」的那种语言
+        self.lang_btn = FlatButton(bar, text="EN" if get_lang() == "zh" else "中",
+                                   kind="ghost", font=F(8),
+                                   command=self._toggle_lang)
+        self.lang_btn.pack(side="right", padx=(0, px(10)))
         return bar
 
     # ---- 卡片：最大力度 + 曲线指数 ----
     def _build_mapping_card(self, parent: tk.Frame) -> Card:
         cfg = self.engine.config()
-        card = Card(parent, "力度映射")
+        card = Card(parent, tr("力度映射", "Velocity Mapping"))
         card.body.grid_columnconfigure(0, weight=1)
 
         # 最大力度
         head = tk.Frame(card.body, bg=CARD)
         head.grid(row=0, column=0, sticky="ew")
-        tk.Label(head, text="最大力度", bg=CARD, fg=TEXT, font=F(9)).pack(side="left")
+        tk.Label(head, text=tr("最大力度", "Max velocity"), bg=CARD, fg=TEXT, font=F(9)).pack(side="left")
         self.max_val = tk.Label(head, text=str(int(cfg["max_input_velocity"])), bg=CARD,
                                 fg=ACCENT, font=F(13, "bold", mono=True))
         self.max_val.pack(side="right")
@@ -1101,17 +1148,17 @@ class App:
 
         row = tk.Frame(card.body, bg=CARD)
         row.grid(row=2, column=0, sticky="ew", pady=(0, px(16)))
-        tk.Label(row, text="键盘用尽全力能达到的力度", bg=CARD, fg=TEXT_FADE,
+        tk.Label(row, text=tr("键盘用尽全力能达到的力度", "The velocity your keyboard reaches at full force"), bg=CARD, fg=TEXT_FADE,
                  font=F(8)).pack(side="left")
-        self.suggest_btn = FlatButton(row, text="采用建议值", kind="ghost", font=F(8),
+        self.suggest_btn = FlatButton(row, text=tr("采用建议值", "Use suggested"), kind="ghost", font=F(8),
                                       command=self._use_suggested)
         self.suggest_btn.pack(side="right")
 
         # 曲线指数
         head2 = tk.Frame(card.body, bg=CARD)
         head2.grid(row=3, column=0, sticky="ew")
-        tk.Label(head2, text="力度曲线", bg=CARD, fg=TEXT, font=F(9)).pack(side="left")
-        tk.Label(head2, text="0.1/格", bg=CARD, fg=TEXT_FADE, font=F(8)).pack(
+        tk.Label(head2, text=tr("力度曲线", "Velocity Curve"), bg=CARD, fg=TEXT, font=F(9)).pack(side="left")
+        tk.Label(head2, text=tr("0.1/格", "0.1 / step"), bg=CARD, fg=TEXT_FADE, font=F(8)).pack(
             side="right", padx=(0, px(8)))
         self.exp_val = tk.Label(head2, text=f"{float(cfg['curve_exponent']):.1f}", bg=CARD,
                                 fg=ACCENT, font=F(13, "bold", mono=True))
@@ -1125,9 +1172,9 @@ class App:
 
         presets = tk.Frame(card.body, bg=CARD)
         presets.grid(row=5, column=0, sticky="ew", pady=(px(6), 0))
-        for text, value, tip in (("线性", 1.0, "1-max 均匀拉伸到 1-127，手感最自然"),
-                                 ("柔和", 1.7, "轻触更轻，用力才出效果，动态范围大"),
-                                 ("爆发", 0.6, "轻触就出声，层次集中在下段")):
+        for text, value, tip in ((tr("线性", "Linear"), 1.0, tr("1-max 均匀拉伸到 1-127，手感最自然", "Stretch 1-max evenly to 1-127 — the most natural feel")),
+                                 (tr("柔和", "Soft"), 1.7, tr("轻触更轻，用力才出效果，动态范围大", "A light touch plays light, wide dynamic range")),
+                                 (tr("爆发", "Punchy"), 0.6, tr("轻触就出声，层次集中在下段", "Even the lightest touch sounds; detail lives in the lower range"))):
             FlatButton(presets, text=text, kind="ghost", font=F(8),
                        command=lambda v=value, t=tip: self._set_preset(v, t)).pack(
                 side="left", padx=(0, px(8)))
@@ -1136,7 +1183,7 @@ class App:
         foot.grid(row=7, column=0, sticky="ew", pady=(px(10), 0))
         # 多余的竖向空间给第 6 行（空行），底部提示贴在卡片下边缘
         card.body.grid_rowconfigure(6, weight=1)
-        self.exp_hint = tk.Label(foot, text="1-max 均匀拉伸到 1-127，手感最自然",
+        self.exp_hint = tk.Label(foot, text=tr("1-max 均匀拉伸到 1-127，手感最自然", "Stretch 1-max evenly to 1-127 — the most natural feel"),
                                  bg=CARD, fg=TEXT_FADE, font=F(8), anchor="w")
         self.exp_hint.pack(side="left")
         self.save_hint = tk.Label(foot, text="", bg=CARD, fg=GOOD, font=F(8))
@@ -1145,22 +1192,22 @@ class App:
 
     # ---- 卡片：曲线图 ----
     def _build_curve_card(self, parent: tk.Frame) -> Card:
-        card = Card(parent, "力度曲线")
+        card = Card(parent, tr("力度曲线", "Velocity Curve"))
         self.curve = CurveView(card.body, height=150)
         self.curve.pack(fill="both", expand=True)
         return card
 
     # ---- 卡片：实时力度 ----
     def _build_realtime_card(self, parent: tk.Frame) -> Card:
-        card = Card(parent, "实时力度")
+        card = Card(parent, tr("实时力度", "Live Velocity"))
 
         head = tk.Frame(card.body, bg=CARD)
         head.pack(fill="x")
         self.note_lbl = tk.Label(head, text="♪ —", bg=CARD, fg=TEXT, font=F(13, "bold"))
         self.note_lbl.pack(side="left")
-        FlatButton(head, text="重置", kind="ghost", font=F(8),
+        FlatButton(head, text=tr("重置", "Reset"), kind="ghost", font=F(8),
                    command=self._reset_stats).pack(side="right")
-        self.notes_lbl = tk.Label(head, text="已弹 0 个音符", bg=CARD, fg=TEXT_FADE,
+        self.notes_lbl = tk.Label(head, text=tr("已弹 0 个音符", "Played 0 notes"), bg=CARD, fg=TEXT_FADE,
                                   font=F(8))
         self.notes_lbl.pack(side="right", padx=(0, px(10)))
 
@@ -1174,9 +1221,9 @@ class App:
                                 font=F(26, "bold", mono=True))
         self.map_big.pack(side="left")
 
-        self.raw_meter = Meter(card.body, "原始", ACCENT)
+        self.raw_meter = Meter(card.body, tr("原始", "Raw"), ACCENT)
         self.raw_meter.pack(fill="x")
-        self.map_meter = Meter(card.body, "映射", GOOD)
+        self.map_meter = Meter(card.body, tr("映射", "Mapped"), GOOD)
         self.map_meter.pack(fill="x", pady=(px(4), px(4)))
 
         self.range_lbl = tk.Label(card.body, text="", bg=CARD, fg=TEXT_FADE, font=F(8))
@@ -1187,25 +1234,25 @@ class App:
 
         sug = tk.Frame(card.body, bg=CARD)
         sug.pack(fill="x", pady=(px(10), 0))
-        self.sug_lbl = tk.Label(sug, text="建议最大力度：弹几下后给出", bg=CARD,
+        self.sug_lbl = tk.Label(sug, text=tr("建议最大力度：弹几下后给出", "Suggested max velocity: appears after a few notes"), bg=CARD,
                                 fg=TEXT_DIM, font=F(8))
         self.sug_lbl.pack(side="left")
-        self.suggest_btn2 = FlatButton(sug, text="采用", kind="accent", font=F(8),
+        self.suggest_btn2 = FlatButton(sug, text=tr("采用", "Use"), kind="accent", font=F(8),
                                        command=self._use_suggested)
         self.suggest_btn2.pack(side="right")
         return card
 
     # ---- 卡片：端口 ----
     def _build_ports_card(self, parent: tk.Frame) -> Card:
-        card = Card(parent, "端口")
+        card = Card(parent, tr("端口", "Ports"))
         card.body.grid_columnconfigure(1, weight=1)
 
-        tk.Label(card.body, text="输入（键盘）", bg=CARD, fg=TEXT_DIM,
+        tk.Label(card.body, text=tr("输入（键盘）", "Input (keyboard)"), bg=CARD, fg=TEXT_DIM,
                  font=F(9)).grid(row=0, column=0, sticky="w", padx=(0, px(12)))
         self.in_dd = Dropdown(card.body, [], "", self._on_port_changed, width=230)
         self.in_dd.grid(row=0, column=1, sticky="ew")
 
-        tk.Label(card.body, text="输出（虚拟端口）", bg=CARD, fg=TEXT_DIM,
+        tk.Label(card.body, text=tr("输出（虚拟端口）", "Output (virtual port)"), bg=CARD, fg=TEXT_DIM,
                  font=F(9)).grid(row=1, column=0, sticky="w", padx=(0, px(12)),
                                  pady=(px(10), 0))
         self.out_dd = Dropdown(card.body, [], "", self._on_port_changed, width=230)
@@ -1220,9 +1267,9 @@ class App:
         row.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(px(12), 0))
         # 多余的竖向空间给第 2 行（空行），这样两个下拉框不会被撑开
         card.body.grid_rowconfigure(2, weight=1)
-        FlatButton(row, text="刷新端口", kind="ghost", font=F(8),
+        FlatButton(row, text=tr("刷新端口", "Refresh ports"), kind="ghost", font=F(8),
                    command=self._sync_ports).pack(side="left")
-        tk.Label(row, text="切换后自动重连", bg=CARD, fg=TEXT_FADE,
+        tk.Label(row, text=tr("切换后自动重连", "Reconnects automatically"), bg=CARD, fg=TEXT_FADE,
                  font=F(8)).pack(side="right")
         return card
 
@@ -1231,7 +1278,7 @@ class App:
         card = Card(parent, "", pad=10)
         head = tk.Frame(card.body, bg=CARD)
         head.pack(fill="x", pady=(0, px(4)))
-        tk.Label(head, text="运行日志", bg=CARD, fg=TEXT_DIM,
+        tk.Label(head, text=tr("运行日志", "Log"), bg=CARD, fg=TEXT_DIM,
                  font=F(9, "bold")).pack(side="left")
         self.log_hint = tk.Label(head, text="", bg=CARD, fg=TEXT_FADE, font=F(8))
         self.log_hint.pack(side="right")
@@ -1255,12 +1302,12 @@ class App:
         return card
 
     # ---- 底部状态条 ----
-    def _build_statusbar(self) -> tk.Frame:
-        bar = tk.Frame(self.root, bg=BG)
+    def _build_statusbar(self, parent: tk.Misc) -> tk.Frame:
+        bar = tk.Frame(parent, bg=BG)
         bar.grid(row=2, column=0, sticky="ew", padx=px(18), pady=(0, px(12)))
         self.status = tk.Label(bar, text="", bg=BG, fg=TEXT_FADE, font=F(8), anchor="w")
         self.status.pack(side="left")
-        tk.Label(bar, text="最小化 / 关闭会收进托盘 · 改动自动保存",
+        tk.Label(bar, text=tr("最小化 / 关闭会收进托盘 · 改动自动保存", "Minimizing / closing hides to the tray · changes save automatically"),
                  bg=BG, fg=TEXT_FADE, font=F(8)).pack(side="right")
         return bar
 
@@ -1296,14 +1343,14 @@ class App:
             "input_port_substring": self.in_dd._value,
             "output_port": self.out_dd._value,
         })
-        self._flash_saved("端口已更新，正在重连…")
+        self._flash_saved(tr("端口已更新，正在重连…", "Ports updated, reconnecting…"))
         self._last_rev = -1
 
     def _sync_ports(self, initial: bool = False) -> None:
         try:
             inputs, outputs = self.engine.ports()
         except Exception as exc:
-            self.status.configure(text=f"读取 MIDI 端口失败: {exc}")
+            self.status.configure(text=trf(f"读取 MIDI 端口失败: {exc}", f"Failed to read MIDI ports: {exc}"))
             return
         cfg = self.engine.config()
         cur_in = cfg["input_port_substring"]
@@ -1336,7 +1383,7 @@ class App:
             self.engine.update({"input_port_substring": match, "output_port": out_match})
         self._update_port_hint()
 
-    def _flash_saved(self, text: str = "已保存") -> None:
+    def _flash_saved(self, text: str = tr("已保存", "Saved")) -> None:
         self.save_hint.configure(text=text)
         if self._save_job:
             try:
@@ -1362,12 +1409,12 @@ class App:
         status = st.get("status", "waiting")
         if not eng.alive:            # 后台线程挂了：别再装作“已连接”
             status = "stopped"
-            st = dict(st, hint="引擎线程已停止，请看日志并重启工具")
+            st = dict(st, hint=tr("引擎线程已停止，请看日志并重启工具", "The engine thread stopped — check the log and restart the tool"))
         # 注意：要连 hint / input_name / output_name 一起比对。只比 status 会漏
         # 掉“端口换了我还显示旧的”这种情况（status 一直是 busy）。
         sub = st.get("hint") or ""
-        bar = (f"输入 {st.get('input_name') or '—'}    →    "
-               f"输出 {st.get('output_name') or '—'}")
+        bar = (trf(f"输入 {st.get('input_name') or '—'}    →    ", f"Input {st.get('input_name') or '—'}    →    ")
+               + trf(f"输出 {st.get('output_name') or '—'}", f"Output {st.get('output_name') or '—'}"))
         sig = (status, sub, bar)
         if sig != self._last_status:
             self._last_status = sig
@@ -1397,7 +1444,7 @@ class App:
         self.note_lbl.configure(text=f"♪ {note_name(last['note'])}" if last else "♪ —")
         self.raw_big.configure(text="--" if raw is None else str(raw))
         self.map_big.configure(text="--" if mapped is None else str(mapped))
-        self.notes_lbl.configure(text=f"已弹 {s['notes']} 个音符")
+        self.notes_lbl.configure(text=trf(f"已弹 {s['notes']} 个音符", f"Played {s['notes']} notes"))
         self.raw_meter.set(raw, 127, max_in)
         self.map_meter.set(mapped, 127)
         self.range_lbl.configure(text=self._range_text(s))
@@ -1405,14 +1452,14 @@ class App:
         sug = s.get("suggested")
         if sug:
             same = sug == max_in
-            self.sug_lbl.configure(text=f"建议最大力度 {sug}")
-            self.suggest_btn2.configure(text="已是建议值" if same else f"采用 {sug}")
+            self.sug_lbl.configure(text=trf(f"建议最大力度 {sug}", f"Suggested max velocity {sug}"))
+            self.suggest_btn2.configure(text=tr("已是建议值", "Already the suggested value") if same else trf(f"采用 {sug}", f"Use {sug}"))
             self.suggest_btn2.set_enabled(not same)
-            self.suggest_btn.configure(text="已是建议值" if same else f"采用建议值 {sug}")
+            self.suggest_btn.configure(text=tr("已是建议值", "Already the suggested value") if same else trf(f"采用建议值 {sug}", f"Use suggested {sug}"))
             self.suggest_btn.set_enabled(not same)
         else:
-            self.sug_lbl.configure(text="建议最大力度：弹几下后给出")
-            self.suggest_btn.configure(text="采用建议值")
+            self.sug_lbl.configure(text=tr("建议最大力度：弹几下后给出", "Suggested max velocity: appears after a few notes"))
+            self.suggest_btn.configure(text=tr("采用建议值", "Use suggested"))
             self.suggest_btn.set_enabled(False)
             self.suggest_btn2.set_enabled(False)
 
@@ -1421,9 +1468,40 @@ class App:
     @staticmethod
     def _range_text(s: Dict[str, Any]) -> str:
         if not s["notes"]:
-            return "还没有收到音符，弹一下试试"
-        return (f"最近范围：原始 {s['raw_min']}–{s['raw_max']}"
-                f"  →  映射 {s['map_min']}–{s['map_max']}")
+            return tr("还没有收到音符，弹一下试试", "No notes yet — play something")
+        return (trf(f"最近范围：原始 {s['raw_min']}–{s['raw_max']}", f"Recent range: raw {s['raw_min']}–{s['raw_max']}")
+                + trf(f"  →  映射 {s['map_min']}–{s['map_max']}", f"  →  mapped {s['map_min']}–{s['map_max']}"))
+
+    @staticmethod
+    def _log_tag(text: str) -> str:
+        """日志行按前缀着色（中英文前缀都认）。"""
+        if text.startswith(("[连接]", "[Connected]", "[已", "转发模式", "Forwarding", "Done")):
+            return "ok"
+        if text.startswith(("[等待]", "[Waiting]", "提示", "可用")):
+            return "warn"
+        if text.startswith(("[断开]", "[Disconnected]", "[错误]", "警告")):
+            return "bad"
+        if text.startswith("[配置]", "[Config]"):
+            return "cfg"
+        return ""
+
+    def _reload_log(self) -> None:
+        """重建界面后把历史日志重新灌回日志框。"""
+        try:
+            lines = [ln for ln in self.engine.log_tail(self.LOG_LINES)
+                     if ln.get("text")]
+            self.log.configure(state="normal")
+            self.log.delete("1.0", "end")
+            for item in lines:
+                text = item["text"]
+                if item.get("t"):
+                    self.log.insert("end", item["t"] + "  ", "time")
+                self.log.insert("end", text + "\n", self._log_tag(text))
+            self.log.configure(state="disabled")
+            self.log.see("end")
+            self._last_log_seq = self.engine.log_seq
+        except Exception:
+            pass
 
     def _refresh_log(self) -> None:
         """只追加新增行（之前是整块删+重建，每条心跳日志都要重画 200 行）。"""
@@ -1448,16 +1526,7 @@ class App:
             return
         for item in lines:
             text = item["text"]
-            if text.startswith(("[连接]", "[已", "转发模式", "Done")):
-                tag = "ok"
-            elif text.startswith(("[等待]", "提示", "可用")):
-                tag = "warn"
-            elif text.startswith(("[断开]", "[错误]", "警告")):
-                tag = "bad"
-            elif text.startswith("[配置]"):
-                tag = "cfg"
-            else:
-                tag = ""
+            tag = self._log_tag(text)
             if item.get("t"):
                 self.log.insert("end", item["t"] + "  ", "time")
             self.log.insert("end", text + "\n", tag)
@@ -1469,7 +1538,7 @@ class App:
             self.log.configure(state="normal")
             self.log.delete("1.0", f"{shown - self.LOG_LINES}.0")
             self.log.configure(state="disabled")
-        self.log_hint.configure(text=f"共 {min(shown, self.LOG_LINES)} 条")
+        self.log_hint.configure(text=trf(f"共 {min(shown, self.LOG_LINES)} 条", f"{min(shown, self.LOG_LINES)} lines"))
 
     # ------------------------------------------------------------------ #
     # 托盘图标 + 关闭行为
@@ -1496,8 +1565,40 @@ class App:
         try:
             with open(self._pref_path(), "w", encoding="utf-8") as f:
                 json.dump({"close_action": self._close_pref,
-                           "minimize_to_tray": bool(self._minimize_to_tray)},
+                           "minimize_to_tray": bool(self._minimize_to_tray),
+                           "lang": get_lang()},
                           f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+
+    def _apply_lang_pref(self) -> None:
+        """按偏好设置界面语言（默认中文）。"""
+        try:
+            lang = str(self._load_prefs().get("lang", "zh"))
+        except Exception:
+            lang = "zh"
+        set_lang(lang)
+
+    def _toggle_lang(self) -> None:
+        """切换界面语言（中文 <-> English），并记住选择。
+
+        只重建界面，引擎和 MIDI 连接都不受影响，弹奏不会断。
+        """
+        new = "en" if get_lang() == "zh" else "zh"
+        set_lang(new)
+        self._save_prefs()
+        self._rebuild_ui()
+        self._apply_tray_labels()
+        self._sync_tray_state()
+        try:
+            if new == "en":
+                self.engine.log_external(
+                    "界面语言已切换为英文。"
+                    if new == "zh" else "Interface language switched to English.")
+            else:
+                self.engine.log_external(
+                    "界面语言已切换为中文。"
+                    if new == "zh" else "Interface language switched to Chinese.")
         except Exception:
             pass
 
@@ -1514,6 +1615,30 @@ class App:
         """最小化时要不要收进托盘（默认收）。"""
         return bool(self._load_prefs().get("minimize_to_tray", True))
 
+    def _tray_menu(self) -> List[Tuple[str, Optional[str], Optional[Dict[str, bool]]]]:
+        """托盘右键菜单（按当前语言生成）。"""
+        return [(tr("显示主窗口", "Show main window"), "show", None),
+                (tr("最小化到后台", "Minimize to background"), "hide", None),
+                ("---", None, None),
+                (tr("关闭时总是询问", "Always ask when closing"), "toggle_ask",
+                 {"checked": self._close_pref == "ask"}),
+                (tr("最小化时收进托盘", "Minimize to tray"), "toggle_min_tray",
+                 {"checked": bool(self._minimize_to_tray)}),
+                ("---", None, None),
+                (tr("完全退出", "Quit completely"), "quit", None)]
+
+    def _apply_tray_labels(self) -> None:
+        """语言切换后更新托盘菜单文字（托盘菜单不在界面里，不会自动重建）。"""
+        if self._tray is None:
+            return
+        for label, entry_id, _opts in self._tray_menu():
+            if not entry_id:
+                continue
+            try:
+                self._tray.set_menu_label(entry_id, label)
+            except Exception:
+                pass
+
     def _start_tray(self) -> None:
         """启动托盘图标（失败也不影响主功能）。"""
         icon_path = os.path.join(SCRIPT_DIR, "app.ico")
@@ -1522,22 +1647,15 @@ class App:
         try:
             import tray
             self._tray = tray.TrayIcon(
-                title="钢琴力度重映射",
+                title=tr("钢琴力度重映射", "Piano Velocity Remapper"),
                 icon_path=icon_path,
-                menu=[("显示主窗口", "show"),
-                      ("最小化到后台", "hide"),
-                      ("---", None),
-                      ("关闭时总是询问", "toggle_ask",
-                       {"checked": self._close_pref == "ask"}),
-                      ("最小化时收进托盘", "toggle_min_tray",
-                       {"checked": bool(self._minimize_to_tray)}),
-                      ("---", None),
-                      ("完全退出", "quit")],
+                menu=[(label, entry_id, opts)
+                      for label, entry_id, opts in self._tray_menu()],
                 on_event=self._on_tray_event)
             self._tray.start()
         except Exception as exc:  # noqa: BLE001 - 托盘失败不能影响主功能
             self._tray = None
-            self.engine.log_external(f"托盘图标启动失败（不影响使用）: {exc}",
+            self.engine.log_external(trf(f"托盘图标启动失败（不影响使用）: {exc}", f"The tray icon failed to start (everything else still works): {exc}"),
                                      stamped=False)
 
     def _on_tray_event(self, event: str) -> None:
@@ -1605,13 +1723,13 @@ class App:
         self._suppress_unmap = False
         self._hidden_to_tray = True
         self._sync_tray_state()
-        self.engine.log_external("已最小化到后台：托盘图标常驻，力度转发继续运行。")
-        tip = ("已最小化到托盘，双击托盘图标可以重新打开窗口。"
+        self.engine.log_external(tr("已最小化到后台：托盘图标常驻，力度转发继续运行。", "Minimized to the background: the tray icon stays and velocity forwarding keeps running."))
+        tip = (tr("已最小化到托盘，双击托盘图标可以重新打开窗口。", "Minimized to the tray — click the tray icon to reopen the window.")
                if reason == "minimize"
-               else "仍在后台运行，双击托盘图标可以重新打开窗口。")
+               else tr("仍在后台运行，双击托盘图标可以重新打开窗口。", "Still running in the background — click the tray icon to reopen the window."))
         if reason not in self._tray_notified:
             self._tray_notified.add(reason)
-            self._tray_notify("力度重映射", tip)
+            self._tray_notify(tr("力度重映射", "Velocity Remapper"), tip)
 
     def _on_unmap(self, _e: Any = None) -> None:
         """窗口被最小化 -> 收进托盘（可在托盘菜单里关掉这个行为）。"""
@@ -1629,8 +1747,8 @@ class App:
         self._close_pref = "ask"
         self._save_prefs()
         self._sync_tray_menu()
-        self.engine.log_external("已恢复「关闭时总是询问」：下次点关闭会再次提示。")
-        self._tray_notify("力度重映射", "已恢复关闭时询问。")
+        self.engine.log_external(tr("已恢复「关闭时总是询问」：下次点关闭会再次提示。", "Restored “Always ask when closing”: closing will ask again next time."))
+        self._tray_notify(tr("力度重映射", "Velocity Remapper"), tr("已恢复关闭时询问。", "Restored the close prompt."))
 
     def _toggle_minimize_to_tray(self) -> None:
         """托盘菜单：切换「最小化时收进托盘」。"""
@@ -1638,7 +1756,7 @@ class App:
         self._save_prefs()
         self._sync_tray_menu()
         self.engine.log_external(
-            "最小化时收进托盘：" + ("已开启" if self._minimize_to_tray else "已关闭"))
+            tr("最小化时收进托盘：", "Minimize to tray:") + (tr("已开启", "on") if self._minimize_to_tray else tr("已关闭", "off")))
 
     def _sync_tray_menu(self) -> None:
         """把当前状态同步到托盘菜单的勾选态。"""
@@ -1657,8 +1775,8 @@ class App:
             return
         try:
             self._tray.set_tooltip(
-                "钢琴力度重映射 · 后台运行中（双击打开）"
-                if self._hidden_to_tray else "钢琴力度重映射")
+                tr("钢琴力度重映射 · 后台运行中（双击打开）", "Piano Velocity Remapper · running in the background (click to open)")
+                if self._hidden_to_tray else tr("钢琴力度重映射", "Piano Velocity Remapper"))
         except Exception:
             pass
 
@@ -1687,7 +1805,7 @@ class App:
                 name, note = midi_ports.ensure_output_port(
                     cfg.get("output_port", ""))
             except Exception as exc:      # noqa: BLE001
-                name, note = None, f"检查 MIDI 端口时出错：{exc}"
+                name, note = None, trf(f"检查 MIDI 端口时出错：{exc}", f"Error while checking MIDI ports: {exc}")
             self._port_queue.put((name, note))
 
         threading.Thread(target=worker, name="port-check", daemon=True).start()
@@ -1695,7 +1813,7 @@ class App:
     def _handle_port_result(self, name: Optional[str], note: str) -> None:
         """端口检查的结果（已经在 Tk 线程）。"""
         if note:
-            self.engine.log_external(f"[端口] {note}")
+            self.engine.log_external(trf(f"[端口] {note}", f"[Ports] {note}"))
         if name:
             try:
                 self.engine.update({"output_port": name})
@@ -1709,7 +1827,7 @@ class App:
     def _show_port_guide(self, message: str) -> None:
         """弹出「需要一个虚拟 MIDI 端口」的引导。"""
         try:
-            PortGuideDialog(self.root, message or "没有找到可用的输出端口。",
+            PortGuideDialog(self.root, message or tr("没有找到可用的输出端口。", "No usable output port found."),
                              on_retry=self._ensure_output_port)
         except Exception:
             pass
@@ -1727,13 +1845,13 @@ class App:
         try:
             if not matched:
                 self.port_hint.configure(
-                    text="没找到输出端口，请确认虚拟 MIDI 端口已打开", fg=WARN)
+                    text=tr("没找到输出端口，请确认虚拟 MIDI 端口已打开", "Output port not found — make sure your virtual MIDI port is running"), fg=WARN)
             elif midi_ports.looks_virtual(matched):
                 self.port_hint.configure(
-                    text=f"虚拟端口「{matched}」· DAW 里请选同一个", fg=GOOD)
+                    text=trf(f"虚拟端口「{matched}」· DAW 里请选同一个", f"Virtual port “{matched}” · pick the same one in your DAW"), fg=GOOD)
             else:
                 self.port_hint.configure(
-                    text=f"「{matched}」是硬件端口，DAW 收不到重映射后的力度",
+                    text=trf(f"「{matched}」是硬件端口，DAW 收不到重映射后的力度", f"“{matched}” is a hardware port — your DAW won't get the remapped velocity"),
                     fg=WARN)
         except Exception:
             pass
@@ -1795,10 +1913,10 @@ class App:
             self._save_prefs()
             self._sync_tray_menu()
             self.engine.log_external(
-                "已记住关闭方式："
-                + ("下次点关闭直接完全退出。" if action == "exit"
-                   else "下次点关闭直接收进后台。")
-                + "（可在托盘图标右键菜单里恢复）")
+                tr("已记住关闭方式：", "Close behaviour remembered:")
+                + (tr("下次点关闭直接完全退出。", "closing will now quit completely.") if action == "exit"
+                   else tr("下次点关闭直接收进后台。", "closing will now hide to the background."))
+                + tr("（可在托盘图标右键菜单里恢复）", "(you can undo this from the tray icon menu)"))
         if action == "exit":
             self._quit()
         else:
@@ -1913,11 +2031,18 @@ def _already_running_dialog() -> None:
     win.withdraw()
     _apply_icon(win, os.path.join(SCRIPT_DIR, "app.ico"))
     from tkinter import messagebox
-    messagebox.showinfo("力度重映射", "工具已经在运行了。\n\n"
-                                      "如果它已最小化到后台，请双击任务栏右下角\n"
-                                      "托盘里的图标把窗口叫回来；\n"
-                                      "实在找不到，可在任务管理器结束 "
-                                      "pythonw.exe 后再启动。")
+    messagebox.showinfo(
+        tr("力度重映射", "Velocity Remapper"),
+        tr("工具已经在运行了。\n\n"
+           "如果它已最小化到后台，请双击任务栏右下角\n"
+           "托盘里的图标把窗口叫回来；\n"
+           "实在找不到，可在任务管理器结束 "
+           "pythonw.exe 后再启动。",
+           "The tool is already running.\n\n"
+           "If it is minimized to the background, click the icon in the\n"
+           "system tray (bottom right) to bring the window back;\n"
+           "if you cannot find it, end "
+           "pythonw.exe in Task Manager and start again."))
     win.destroy()
 
 

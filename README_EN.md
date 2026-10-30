@@ -29,15 +29,18 @@
 
 Grab it from the **[Releases](../../releases)** page:
 
-| Build | File | Size | Who it's for |
+| Version | File | Size | What you get |
 | --- | --- | --- | --- |
-| **Standalone** (recommended) | `PianoVelocityMapper-Green-v1.0.0.zip` | ≈18 MB | Just want it to work: unzip, double-click — **no Python needed** |
-| **Source** | `PianoVelocityMapper-Source-v1.0.0.zip` | ≈80 KB | You want to read, modify or build it yourself |
+| **v1.2.0** | `PianoVelocityMapper-v1.2.0.zip` | ≈18 MB | Unzip, double-click — **no Python needed** |
 
-> Neither archive bundles any third-party software. You install a virtual MIDI port
-> tool ([loopMIDI](https://www.tobias-erichsen.de/software/loopmidi.html)) yourself
+> The archive contains this tool only (a single exe) plus the docs — **no
+> third-party software**. You install a virtual MIDI port tool
+> ([loopMIDI](https://www.tobias-erichsen.de/software/loopmidi.html)) yourself
 > once — after that this app **starts it for you**, so there's only one program
 > to launch from now on.
+
+> Want to change the code? Use this repository (MIT): **Code → Download ZIP**,
+> or `git clone` and run `setup.cmd` (see [For developers](#-for-developers)).
 
 ---
 
@@ -87,6 +90,7 @@ instrument. You don't have to redraw a velocity curve in every piece of software
 | **Stays in the system tray** | Closing asks whether to quit; choose "keep running" and it keeps forwarding from the tray |
 | **Chinese / English UI** | One-click language switch (top right), Chinese by default |
 | **Virtual port, handled** | Starts your installed loopMIDI automatically; only shows a setup guide if there's really nothing to find |
+| **Scrollable port lists** | With many ports the popup stays on screen; scroll wheel, arrow keys and the scrollbar all reach the last entry |
 | **Smart calibration** | Play a few notes and it suggests the right max velocity — one click to apply |
 | **Velocity curve** | Linear / Soft / Punchy, adjusted to taste, applied live |
 | **Auto-reconnect** | Unplug the keyboard, start loopMIDI later — it reconnects by itself |
@@ -113,9 +117,12 @@ personal use):
 
 ### 2. Install this tool
 
-* **Standalone:** unzip → double-click `PianoVelocityMapper.exe`
-* **Source:** install Python 3.10 – 3.13 → double-click `setup.cmd` (run it once;
-  it installs the dependencies and creates a desktop shortcut)
+Unzip → double-click `PianoVelocityMapper.exe`. (The first launch unpacks its
+dependencies — a second or two is normal.)
+
+> Prefer to run it from source? Clone this repository → install Python 3.10 –
+> 3.13 → double-click `setup.cmd` (run it once; it installs the dependencies and
+> creates a desktop shortcut).
 
 ### 3. Wire it into your DAW
 
@@ -181,12 +188,12 @@ python -m venv .venv
 .venv\Scripts\pip install pyinstaller
 .venv\Scripts\python build_exe.py
 
-# assemble both distribution archives
-powershell -ExecutionPolicy Bypass -File make_release.ps1
+# assemble the distribution archive (release\PianoVelocityMapper-v<version>.zip)
+powershell -ExecutionPolicy Bypass -File make_release.ps1 -Version 1.2.0
 ```
 
-GitHub Actions is included too: push a `v*` tag and it builds the exe on Windows
-and attaches it to the matching Release automatically.
+GitHub Actions is included too: push a `v*` tag and it builds the package on
+Windows and attaches it to the matching Release automatically.
 
 | File | What it does |
 | --- | --- |

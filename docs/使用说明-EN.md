@@ -1,4 +1,4 @@
-# Piano Velocity Remapper · Standalone build
+# Piano Velocity Remapper
 
 Unzip and **double-click `PianoVelocityMapper.exe`** — that's it. No Python, no
 installer.
@@ -51,6 +51,8 @@ MIDI input.
   Chinese by default.
 * Settings live in **`config.json` next to the exe** — copy that file to move
   your settings to another machine.
+* With many MIDI ports the popup stays on screen: scroll wheel, arrow keys and the
+  scrollbar on the right all reach the last entry — nothing is stranded off-screen.
 * First launch unpacks the bundled dependencies to a temp folder, so it takes a
   second or two. That's normal.
 * The program itself contains **no third-party software**; loopMIDI is yours to

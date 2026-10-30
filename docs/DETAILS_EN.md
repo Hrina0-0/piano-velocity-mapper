@@ -213,23 +213,24 @@ well, uninstall loopMIDI separately.
 ## 11. Building a distribution
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File make_release.ps1
+powershell -ExecutionPolicy Bypass -File make_release.ps1 -Version 1.2.0
 ```
 
-This produces two archives in `release\`:
+This produces one archive in `release\`:
 
 | Archive | Contents | What the recipient does |
 | --- | --- | --- |
-| `钢琴力度重映射-绿色版.zip` | `PianoVelocityMapper.exe` (≈18 MB) + docs | Unzip and double-click — no Python needed |
-| `钢琴力度重映射-源码版.zip` | Full source + `setup.cmd` | Install Python 3.10–3.13, run `setup.cmd` |
+| `PianoVelocityMapper-v1.2.0.zip` | `PianoVelocityMapper.exe` (≈18 MB) + docs | Unzip and double-click — no Python needed |
 
-Neither archive contains third-party software: loopMIDI has to be installed from
-the official site, and afterwards the tool starts it automatically.
+The archive contains no third-party software: loopMIDI has to be installed from
+the official site, and afterwards the tool starts it automatically. The source
+code lives in this repository (MIT licence) — clone it or use *Code → Download
+ZIP*.
 
 | File | Purpose |
 | --- | --- |
 | `build_exe.py` | Build the standalone exe with PyInstaller |
-| `make_release.ps1` | Assemble both archives |
+| `make_release.ps1` | Assemble the archive |
 | `paths.py` | Separates read-only resources from writable data (config must live next to the exe) |
 | `check_ports.py` | Environment check, run at the end of `setup.cmd` |
 

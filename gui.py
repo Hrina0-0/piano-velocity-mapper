@@ -431,10 +431,18 @@ class Slider(tk.Canvas):
 
 
 class Dropdown(tk.Frame):
-    """深色下拉选择器：点击弹出浮层列表（比 ttk.Combobox 好看且可完全控制配色）。"""
+    """深色下拉选择器：点击弹出浮层列表（比 ttk.Combobox 好看且可完全控制配色）。
+
+    MIDI 端口一多，列表就会比屏幕能放下的高度还长，靠后的几项直接跑到屏幕
+    外面去，既看不见也点不着。这里做了三件事：
+    1. 屏幕下方放不下就改为向上弹出；
+    2. 还是放不下就只显示放得下的那几行；
+    3. 剩下的行用滚轮 / 上下键 / 右侧滚动条翻动，滚动时浮层原地重画（不闪）。
+    """
 
     MAX_ROWS = 9
     ROW_H = 30
+    SB_W = 7
 
     def __init__(self, master: tk.Misc, values: List[str], value: str,
                  on_change: Callable[[str], None], width: int = 240,
@@ -455,6 +463,13 @@ class Dropdown(tk.Frame):
         self._on_change = on_change
         self._popup: Optional[tk.Toplevel] = None
         self._offset = 0
+        self._rows_shown = 0
+        self._hover = -1
+        self._body: Optional[tk.Frame] = None
+        self._sb: Optional[tk.Canvas] = None
+        self._sb_needed = False
+        self._sb_drag_from = 0
+        self._sb_off_from = 0
         self._busy = False
         self._render()
         for w in (self, self._inner, self._btn, self._arrow):
@@ -485,6 +500,11 @@ class Dropdown(tk.Frame):
 
     def _close(self) -> None:
         popup, self._popup = self._popup, None
+        self._rows_shown = 0
+        self._hover = -1
+        self._body = None
+        self._sb = None
+        self._sb_needed = False
         if popup is not None:
             try:
                 popup.grab_release()
@@ -492,59 +512,221 @@ class Dropdown(tk.Frame):
             except Exception:
                 pass
 
+    # ------------------------------------------------------------------ #
+    # 浮层
+    # ------------------------------------------------------------------ #
+
     def _open(self) -> None:
         if not self._values:
             return
         popup = tk.Toplevel(self)
         popup.wm_overrideredirect(True)
         self._popup = popup
-        rows = min(self.MAX_ROWS, len(self._values))
-        w = self.winfo_width()
+
+        row_h = px(self.ROW_H)
+        w = max(self.winfo_width(), px(150))
         x = self.winfo_rootx()
-        y = self.winfo_rooty() + self.winfo_height() + px(2)
-        popup.geometry(f"{w}x{px(self.ROW_H) * rows + px(4)}+{x}+{y}")
+        screen_h = self.winfo_screenheight()
+
+        # 先算「最多 MAX_ROWS 行」需要多高，再看屏幕下方放不放得下
+        want_h = row_h * min(self.MAX_ROWS, len(self._values)) + px(4)
+        below_y = self.winfo_rooty() + self.winfo_height() + px(2)
+        space_below = screen_h - below_y
+        space_above = self.winfo_rooty() - px(2)
+        if space_below >= want_h or space_below >= space_above:
+            y, avail = below_y, space_below       # 下方放得下就往下弹
+        else:
+            y = max(0, self.winfo_rooty() - px(2) - want_h)
+            avail = space_above                     # 放不下就往上弹
+
+        rows = max(1, min(self.MAX_ROWS, len(self._values)))
+        rows = max(1, min(rows, int((avail - px(8)) // row_h)))
+        h = row_h * rows + px(4)
+        if y + h > screen_h:
+            y = max(0, screen_h - h)
+        popup.geometry(f"{w}x{h}+{x}+{y}")
         popup.configure(bg=BORDER)
 
         inner = tk.Frame(popup, bg=CARD)
         inner.pack(fill="both", expand=True, padx=1, pady=1)
 
+        self._rows_shown = rows
+        # 打开时让当前选中的那一项落在可见范围内
+        sel = self._values.index(self._value) if self._value in self._values else -1
+        if sel >= 0:
+            if sel < self._offset:
+                self._offset = sel
+            elif sel >= self._offset + rows:
+                self._offset = sel - rows + 1
+        self._clamp_offset()
+
+        body = tk.Frame(inner, bg=CARD)
+        body.pack(side="left", fill="both", expand=True)
+        self._body = body
+
+        self._sb = tk.Canvas(inner, width=px(self.SB_W), bg=CARD_HI,
+                             highlightthickness=0, bd=0)
+        self._sb_needed = len(self._values) > rows
+        if self._sb_needed:
+            self._sb.pack(side="right", fill="y")
+            self._sb.bind("<Configure>", lambda _e: self._draw_scrollbar())
+            self._sb.bind("<Button-1>", self._sb_press)
+            self._sb.bind("<B1-Motion>", self._sb_drag)
+
+        self._fill_rows()
+        try:
+            popup.update_idletasks()
+            self._draw_scrollbar()
+        except Exception:
+            pass
+
+        popup.bind("<Button-1>", lambda _e: self._close())
+        popup.bind("<Escape>", lambda _e: self._close())
+        popup.bind("<MouseWheel>", self._wheel)
+        popup.bind("<Up>", lambda _e: self._move(-1))
+        popup.bind("<Down>", lambda _e: self._move(1))
+        popup.bind("<Return>", self._enter)
+        try:
+            popup.grab_set()   # grab 之后，点击浮层外部的事件也被重定向到浮层 -> 触发关闭
+        except Exception:
+            pass
+        popup.focus_force()
+
+    def _fill_rows(self) -> None:
+        """按当前偏移重画可见行（滚动时复用同一个浮层，不闪）。"""
+        body = self._body
+        if body is None:
+            return
+        for child in body.winfo_children():
+            child.destroy()
+        rows = self._rows_shown
         for i in range(rows):
             idx = self._offset + i
             if idx >= len(self._values):
                 break
             name = self._values[idx]
             sel = name == self._value
-            row = tk.Label(inner, text=("✓  " if sel else "    ") + name,
-                           bg=ACCENT_DIM if sel else CARD,
-                           fg=TEXT if sel else TEXT_DIM,
+            hov = idx == self._hover
+            row = tk.Label(body,
+                           text=("✓  " if sel else "    ") + name,
+                           bg=ACCENT_DIM if sel else (CARD_HI if hov else CARD),
+                           fg=TEXT if (sel or hov) else TEXT_DIM,
                            font=F(9), anchor="w", cursor="hand2",
                            padx=px(10), pady=px(6))
             row.pack(fill="x")
             row.bind("<Button-1>", lambda _e, n=name: self._pick(n))
             row.bind("<Enter>", lambda _e, r=row, s=sel:
                      r.configure(bg=ACCENT_DIM if s else CARD_HI))
+            row.bind("<MouseWheel>", self._wheel)
 
-        popup.bind("<Button-1>", lambda _e: self._close())
-        popup.bind("<Escape>", lambda _e: self._close())
-        popup.bind("<MouseWheel>", self._wheel)
-        popup.grab_set()      # grab 之后，点击浮层外部的事件也被重定向到浮层 -> 触发关闭
-        popup.focus_force()
+    # ------------------------------------------------------------------ #
+    # 滚动
+    # ------------------------------------------------------------------ #
 
-    def _wheel(self, e: Any) -> None:
-        if len(self._values) <= self.MAX_ROWS:
+    def _max_offset(self) -> int:
+        return max(0, len(self._values) - self._rows_shown)
+
+    def _clamp_offset(self) -> None:
+        self._offset = max(0, min(self._offset, self._max_offset()))
+
+    def _scroll_by(self, step: int) -> None:
+        self._offset += step
+        self._clamp_offset()
+        self._fill_rows()
+        self._draw_scrollbar()
+
+    def _wheel(self, e: Any) -> str:
+        if len(self._values) <= self._rows_shown:
+            return "break"
+        self._scroll_by(-1 if e.delta > 0 else 1)
+        return "break"
+
+    def _move(self, delta: int) -> str:
+        n = len(self._values)
+        if n == 0:
+            return "break"
+        cur = self._hover if self._hover >= 0 else self._current_index()
+        self._hover = max(0, min(n - 1, cur + delta))
+        if self._hover < self._offset:
+            self._offset = self._hover
+        elif self._hover >= self._offset + self._rows_shown:
+            self._offset = self._hover - self._rows_shown + 1
+        self._clamp_offset()
+        self._fill_rows()
+        self._draw_scrollbar()
+        return "break"
+
+    def _current_index(self) -> int:
+        if self._value in self._values:
+            return self._values.index(self._value)
+        return 0
+
+    def _enter(self, _e: Any = None) -> str:
+        if 0 <= self._hover < len(self._values):
+            self._pick(self._values[self._hover])
+        return "break"
+
+    # ------------------------------------------------------------------ #
+    # 滚动条
+    # ------------------------------------------------------------------ #
+
+    def _thumb_h(self) -> int:
+        sb = self._sb
+        h = sb.winfo_height() if sb is not None else 0
+        total = max(1, len(self._values))
+        shown = max(1, self._rows_shown)
+        return max(px(20), int(h * shown / total)) if h > 1 else px(20)
+
+    def _draw_scrollbar(self) -> None:
+        sb = self._sb
+        if sb is None or not self._sb_needed:
             return
-        self._offset = max(0, min(len(self._values) - self.MAX_ROWS,
-                                  self._offset - (1 if e.delta > 0 else -1)))
-        self._close()
-        self._open()
+        sb.delete("all")
+        h = sb.winfo_height()
+        if h <= 1:
+            return
+        thumb_h = self._thumb_h()
+        travel = max(1, h - thumb_h)
+        max_off = max(1, self._max_offset())
+        y = int(travel * self._offset / max_off)
+        sb.create_rectangle(0, y, px(self.SB_W), y + thumb_h, fill=ACCENT, outline="")
 
-    def _pick(self, name: str) -> None:
+    def _sb_press(self, e: Any) -> str:
+        if not self._sb_needed or self._sb is None:
+            return "break"
+        h = self._sb.winfo_height()
+        travel = max(1, h - self._thumb_h())
+        max_off = max(1, self._max_offset())
+        frac = min(1.0, max(0.0, (e.y - self._thumb_h() / 2) / travel))
+        self._offset = int(frac * max_off)
+        self._clamp_offset()
+        self._fill_rows()
+        self._draw_scrollbar()
+        self._sb_drag_from = e.y
+        self._sb_off_from = self._offset
+        return "break"
+
+    def _sb_drag(self, e: Any) -> str:
+        if not self._sb_needed or self._sb is None:
+            return "break"
+        h = self._sb.winfo_height()
+        travel = max(1, h - self._thumb_h())
+        max_off = max(1, self._max_offset())
+        delta = (e.y - self._sb_drag_from) / travel * max_off
+        self._offset = int(self._sb_off_from + delta)
+        self._clamp_offset()
+        self._fill_rows()
+        self._draw_scrollbar()
+        return "break"
+
+    def _pick(self, name: str) -> str:
         changed = name != self._value
         self._value = name
         self._render()
         self._close()
         if changed:
             self._on_change(name)
+        return "break"
 
 
 # --------------------------------------------------------------------------- #

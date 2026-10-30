@@ -29,13 +29,16 @@
 
 到 **[Releases](../../releases)** 页面下载：
 
-| 版本 | 文件 | 大小 | 适合谁 |
+| 版本 | 文件 | 大小 | 说明 |
 | --- | --- | --- | --- |
-| **绿色版**（推荐） | `PianoVelocityMapper-Green-v1.0.0.zip` | ≈18 MB | 想直接用的：解压双击即用，**不用装 Python** |
-| **源码版** | `PianoVelocityMapper-Source-v1.0.0.zip` | ≈80 KB | 想自己改、自己编译的人 |
+| **v1.2.0** | `PianoVelocityMapper-v1.2.0.zip` | ≈18 MB | 解压双击即用，**不需要装 Python** |
 
-> 两个包都**不含任何第三方软件**。虚拟 MIDI 端口工具（loopMIDI）需要你自己从官网装一次，
+> 压缩包里只有本工具（单文件 exe）和说明文档，**不含任何第三方软件**。
+> 虚拟 MIDI 端口工具（loopMIDI）需要你自己从官网装一次，
 > 装完之后本工具会**自动帮你启动它**，以后只需要开这一个软件。
+
+> 想自己改代码？直接用本仓库（MIT 许可）：右上角 **Code → Download ZIP**，
+> 或者 `git clone` 之后跑 `setup.cmd`（见 [给开发者](#-给开发者)）。
 
 ---
 
@@ -80,6 +83,7 @@
 | **系统托盘常驻** | 点 ✕ 问你要不要完全退出；选「留在后台」就缩到托盘继续转发 |
 | **界面语言** | 中文 / English 一键切换（右上角按钮），默认中文 |
 | **虚拟端口自动接管** | 找不到虚拟端口时，自动启动你已安装的 loopMIDI；实在没有才给引导 |
+| **端口列表可滚动** | 端口多的时候浮层自动收进屏幕内，滚轮 / 方向键 / 滚动条都能翻到最后一项 |
 | **智能标定** | 弹几下就给出建议的最大力度，一键套用 |
 | **力度曲线** | 线性 / 柔和 / 爆发，按手感微调，实时生效 |
 | **自动重连** | 键盘拔了再插上、loopMIDI 后启动，都会自己接上 |
@@ -103,8 +107,10 @@ Windows 上最常见的做法是 [loopMIDI](https://www.tobias-erichsen.de/softw
 
 ### 2. 装本工具
 
-* **绿色版**：解压 → 双击 `PianoVelocityMapper.exe`
-* **源码版**：装 Python 3.10 ~ 3.13 → 双击 `setup.cmd`（只跑一次，会装依赖并建桌面快捷方式）
+解压 → 双击 `PianoVelocityMapper.exe`。（第一次启动会解压依赖，慢一两秒属正常。）
+
+> 想从源码跑：克隆本仓库 → 装 Python 3.10 ~ 3.13 → 双击 `setup.cmd`
+> （只跑一次，会装依赖并建桌面快捷方式）。
 
 ### 3. 接进 DAW
 
@@ -159,16 +165,16 @@ python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt
 .venv\Scripts\python app.py
 
-# 打绿色版单文件 exe
+# 打单文件 exe
 .venv\Scripts\pip install pyinstaller
 .venv\Scripts\python build_exe.py
 
-# 组装两个分发包
-powershell -ExecutionPolicy Bypass -File make_release.ps1
+# 组装分发包（release\PianoVelocityMapper-v<版本>.zip）
+powershell -ExecutionPolicy Bypass -File make_release.ps1 -Version 1.2.0
 ```
 
 仓库里还带了 GitHub Actions：推一个 `v*` 标签，就会自动在 Windows 上打包并把
-exe 附到对应的 Release 上。
+压缩包附到对应的 Release 上。
 
 | 文件 | 作用 |
 | --- | --- |

@@ -1,4 +1,4 @@
-"""最终分发审计：把两个 zip 解开，逐文件扫隐私与 P115 残留。"""
+"""最终分发审计：把 release 目录里的压缩包解开，逐文件扫隐私与型号残留。"""
 import os
 import re
 import sys
@@ -7,7 +7,14 @@ import zipfile
 RELEASES = r"D:\Codex-work\repiano_pkg\release"
 WORK = os.path.join(os.environ.get("TEMP", "."), "p115_audit")
 
-ZIPS = ["钢琴力度重映射-绿色版.zip", "钢琴力度重映射-源码版.zip"]
+
+def _zips() -> list:
+    """release 目录下所有分发包（现在只有一个，但审计按实际文件走）。"""
+    if not os.path.isdir(RELEASES):
+        return []
+    return sorted(os.path.join(RELEASES, n)
+                  for n in os.listdir(RELEASES)
+                  if n.lower().endswith(".zip"))
 
 # 扫描目标：个人标识 / 敏感词 / 型号残留
 SCAN = {
@@ -40,8 +47,12 @@ BINARY_EXT = {".exe", ".ico", ".png", ".pyc", ".zip", ".woff", ".ttf"}
 
 def main() -> int:
     problems = 0
-    for zname in ZIPS:
-        zpath = os.path.join(RELEASES, zname)
+    zips = _zips()
+    if not zips:
+        print(f"release 目录下没有 zip：{RELEASES}")
+        return 1
+    for zpath in zips:
+        zname = os.path.basename(zpath)
         print("=" * 66)
         print("包:", zname)
         print("=" * 66)
@@ -93,7 +104,8 @@ def main() -> int:
         print()
 
     print("=" * 66)
-    print("审计结论:", "全部干净 ✓" if problems == 0 else f"发现 {problems} 处问题")
+    # 注意：控制台可能是 GBK 代码页，别用 ✓ 这种非 ASCII 符号
+    print("审计结论:", "全部干净 OK" if problems == 0 else f"发现 {problems} 处问题")
     return 0 if problems == 0 else 1
 
 

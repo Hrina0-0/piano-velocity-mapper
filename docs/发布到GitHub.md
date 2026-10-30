@@ -14,8 +14,8 @@
 2. 发布前必须做一次隐私审计（dev/audit_release.py）：
    确认打包内容里没有我的本机路径、用户名、设备型号、宿主软件名、API key、邮箱
 3. 不要动我本地正在使用的那份原项目，所有改动只在打包用的副本里做
-4. 构建绿色版 exe + 源码版两个压缩包
-5. 打 tag 发 Release，把两个包挂成 Release 附件
+4. 只构建**一个**分发包（单文件 exe），不要再做源码包
+5. 打 tag 发 Release，把这个包挂成 Release 附件
 6. 发布完成后告诉我仓库地址、Release 地址和下载链接
 ```
 
@@ -62,8 +62,8 @@ Copy-Item -Recurse <原项目目录> <副本目录>
 ### 3. 构建
 
 ```powershell
-.\.venv\Scripts\python.exe build_exe.py          # 绿色版 exe
-powershell -ExecutionPolicy Bypass -File make_release.ps1   # 两个分发包
+.\.venv\Scripts\python.exe build_exe.py          # 单文件 exe
+powershell -ExecutionPolicy Bypass -File make_release.ps1 -Version 1.2.0   # 一个分发包
 ```
 
 ### 4. 提交并推送
@@ -79,11 +79,11 @@ git push origin main
 ```powershell
 git tag v1.2.0
 git push origin v1.2.0
-gh release create v1.2.0 --title "..." --notes-file <说明文件> <附件1> <附件2>
+gh release create v1.2.0 --title "..." --notes-file <说明文件> PianoVelocityMapper-v1.2.0.zip
 ```
 
-**附件名用 ASCII**：中文文件名在 `uploads.github.com` 上会 404。可以用中文名打包，
-上传时另存一份 ASCII 名的。
+**附件名用 ASCII**：中文文件名在 `uploads.github.com` 上会 404。所以包名统一用
+`PianoVelocityMapper-v<版本>.zip`，本地和 GitHub 上是同一个文件、同一个名字。
 
 ### 6. 仓库设置建议
 
@@ -114,8 +114,7 @@ gh repo edit <仓库> --description "..." --add-topic midi --add-topic velocity 
 ## 收尾检查清单
 
 - [ ] `dev/audit_release.py` 报告「全部干净」
-- [ ] 绿色版从解压目录能跑起来（配置写在 exe 旁边，不是临时目录）
-- [ ] 源码版的 `setup.cmd` 能跑通（建环境、装依赖、端口体检）
-- [ ] 从 GitHub 真实下载一次绿色版再运行，确认下载链路没问题
-- [ ] 桌面快捷方式、图标、Release 附件都对
+- [ ] 压缩包从解压目录能跑起来（配置写在 exe 旁边，不是临时目录）
+- [ ] 从 GitHub 真实下载一次再运行，确认下载链路没问题
+- [ ] 桌面快捷方式、图标、Release 附件都对（**Release 上只有一个包**）
 - [ ] 用户本地那份没被动过

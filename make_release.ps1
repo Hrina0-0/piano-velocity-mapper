@@ -1,26 +1,38 @@
 ﻿<#
-    make_release.ps1 - 组装对外分发的压缩包
+    make_release.ps1 - 组装对外分发的压缩包（只有一个）
 
     产物（在 release\ 下）：
-      钢琴力度重映射-绿色版.zip   单文件 exe，对方解压双击即用
-      钢琴力度重映射-源码版.zip   完整源码，对方跑 setup.cmd 装环境
+      PianoVelocityMapper-v<版本>.zip   单文件 exe + 使用说明，对方解压双击即用
 
     用法：
       powershell -ExecutionPolicy Bypass -File make_release.ps1
       powershell -ExecutionPolicy Bypass -File make_release.ps1 -SkipBuild
+      powershell -ExecutionPolicy Bypass -File make_release.ps1 -Version 1.2.0
 #>
 
-param([switch]$SkipBuild)
+param([switch]$SkipBuild, [string]$Version = "")
 
 $ErrorActionPreference = 'Stop'
 # 注意：脚本文件本身是 UTF-8 with BOM，Windows PowerShell 5.1 才能正确读中文。
 # 不需要 chcp（那是 cmd.exe 的内建命令，PowerShell 里调不到）。
 
-$Root      = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Release   = Join-Path $Root 'release'
-$GreenDir  = Join-Path $Release '钢琴力度重映射-绿色版'
-$SourceDir = Join-Path $Release '钢琴力度重映射-源码版'
-$Exe       = Join-Path $Root 'dist\PianoVelocityMapper.exe'
+$Root    = Split-Path -Parent $MyInvocation.MyCommand.Path
+$Release = Join-Path $Root 'release'
+$PackDir = Join-Path $Release 'PianoVelocityMapper'
+$Exe     = Join-Path $Root 'dist\PianoVelocityMapper.exe'
+
+# 版本号：命令行给的优先，否则从最近的 git tag 推断
+if (-not $Version) {
+    $Version = '0.0.0'
+    try {
+        $tag = (& git -C $Root describe --tags --abbrev=0 2>$null | Select-Object -First 1)
+        if ($tag) { $Version = ($tag -replace '^v', '') }
+    } catch {
+        # 没有 git 或没有 tag 就用 0.0.0
+    }
+}
+$ZipName = "PianoVelocityMapper-v$Version.zip"
+$ZipPath = Join-Path $Release $ZipName
 
 function Remove-Dir($p) {
     if (Test-Path $p) { Remove-Item $p -Recurse -Force }
@@ -28,7 +40,7 @@ function Remove-Dir($p) {
 
 # ---------- 1. 打 exe ----------
 if (-not $SkipBuild) {
-    Write-Host '==> 打包绿色版 exe ...'
+    Write-Host '==> 打包 exe ...'
     $py = Join-Path $Root '.venv\Scripts\python.exe'
     if (-not (Test-Path $py)) { throw '没有 .venv，请先建虚拟环境并安装 pyinstaller。' }
     & $py (Join-Path $Root 'build_exe.py')
@@ -36,69 +48,29 @@ if (-not $SkipBuild) {
 }
 if (-not (Test-Path $Exe)) { throw "找不到 exe：$Exe" }
 
-# ---------- 2. 绿色版 ----------
-Write-Host '==> 组装绿色版 ...'
-Remove-Dir $GreenDir
-New-Item -ItemType Directory -Force -Path $GreenDir | Out-Null
-Copy-Item $Exe $GreenDir
-Copy-Item (Join-Path $Root 'docs\使用说明-绿色版.md') (Join-Path $GreenDir '使用说明.md')
-Copy-Item (Join-Path $Root 'docs\使用说明-绿色版-EN.md') (Join-Path $GreenDir 'README-EN.md')
-Copy-Item (Join-Path $Root 'make_shortcut.cmd') (Join-Path $GreenDir '创建桌面快捷方式.cmd')
-Copy-Item (Join-Path $Root 'make_shortcut.ps1') $GreenDir
-Copy-Item (Join-Path $Root 'app.ico') $GreenDir
-Copy-Item (Join-Path $Root 'third_party_licenses.txt') $GreenDir
+# ---------- 2. 组装 ----------
+Write-Host "==> 组装 $ZipName ..."
+Remove-Dir $PackDir
+New-Item -ItemType Directory -Force -Path $PackDir | Out-Null
+Copy-Item $Exe $PackDir
+Copy-Item (Join-Path $Root 'docs\使用说明.md')         (Join-Path $PackDir '使用说明.md')
+Copy-Item (Join-Path $Root 'docs\使用说明-EN.md')      (Join-Path $PackDir 'README-EN.md')
+Copy-Item (Join-Path $Root 'make_shortcut.cmd')        (Join-Path $PackDir '创建桌面快捷方式.cmd')
+Copy-Item (Join-Path $Root 'make_shortcut.ps1')        $PackDir
+Copy-Item (Join-Path $Root 'app.ico')                  $PackDir
+Copy-Item (Join-Path $Root 'third_party_licenses.txt') $PackDir
 
-# ---------- 3. 源码版 ----------
-Write-Host '==> 组装源码版 ...'
-Remove-Dir $SourceDir
-New-Item -ItemType Directory -Force -Path $SourceDir | Out-Null
-
-$SourceFiles = @(
-    'app.py', 'gui.py', 'engine.py', 'velocity_mapper.py', 'aa.py', 'tray.py',
-    'midi_ports.py', 'paths.py', 'i18n.py', 'check_ports.py', 'build_exe.py',
-    'webui.py', 'webui.html',
-    'app.ico', 'requirements.txt', 'setup.cmd', 'start_mapper.bat',
-    'calibrate.bat', 'install_shortcut.py', 'build_portable.ps1', 'make_release.ps1',
-    'README.md', 'README_EN.md'
-)
-foreach ($f in $SourceFiles) {
-    $src = Join-Path $Root $f
-    if (Test-Path $src) { Copy-Item $src $SourceDir } else { Write-Host "    跳过（不存在）: $f" -ForegroundColor Yellow }
-}
-# 配置给一份出厂默认值（不要把你本机调好的参数发出去）
-Copy-Item (Join-Path $Root 'config.json') $SourceDir
-# 注意：必须写「不带 BOM」的 UTF-8。Windows PowerShell 5.1 的
-# Set-Content -Encoding UTF8 会加 BOM，会让 json.load 直接抛错。
-$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-[System.IO.File]::WriteAllText(
-    (Join-Path $SourceDir 'ui_prefs.json'),
-    "{`n  `"close_action`": `"ask`",`n  `"minimize_to_tray`": true`n}`n",
-    $utf8NoBom)
-Copy-Item (Join-Path $Root 'docs\使用说明-源码版.md') (Join-Path $SourceDir '快速开始.md')
-Copy-Item (Join-Path $Root 'docs\使用说明-源码版-EN.md') (Join-Path $SourceDir 'QUICKSTART-EN.md')
-Copy-Item (Join-Path $Root 'third_party_licenses.txt') $SourceDir
-# 详细文档 + 界面截图
-$srcDocs = Join-Path $SourceDir 'docs'
-New-Item -ItemType Directory -Force -Path $srcDocs | Out-Null
-foreach ($d in @('详细说明.md', 'DETAILS_EN.md', 'screenshot-zh.png', 'screenshot-en.png')) {
-    $p = Join-Path $Root "docs\$d"
-    if (Test-Path $p) { Copy-Item $p $srcDocs -Force }
-}
-
-# ---------- 4. 压缩 ----------
+# ---------- 3. 压缩（release\ 里只保留这一个包）----------
 Write-Host '==> 压缩 ...'
 New-Item -ItemType Directory -Force -Path $Release | Out-Null
-$greenZip  = Join-Path $Release '钢琴力度重映射-绿色版.zip'
-$sourceZip = Join-Path $Release '钢琴力度重映射-源码版.zip'
-foreach ($z in @($greenZip, $sourceZip)) { if (Test-Path $z) { Remove-Item $z -Force } }
-
-Compress-Archive -Path (Join-Path $GreenDir '*')  -DestinationPath $greenZip  -CompressionLevel Optimal
-Compress-Archive -Path (Join-Path $SourceDir '*') -DestinationPath $sourceZip -CompressionLevel Optimal
-
-Write-Host ''
-foreach ($z in @($greenZip, $sourceZip)) {
-    $mb = '{0:N1} MB' -f ((Get-Item $z).Length / 1MB)
-    Write-Host ("  {0,-40} {1}" -f (Split-Path $z -Leaf), $mb) -ForegroundColor Green
+Get-ChildItem $Release -Filter '*.zip' -File -ErrorAction SilentlyContinue | ForEach-Object {
+    Write-Host "    清理旧包: $($_.Name)"
+    Remove-Item $_.FullName -Force
 }
+Compress-Archive -Path (Join-Path $PackDir '*') -DestinationPath $ZipPath -CompressionLevel Optimal
+
+$mb = '{0:N1} MB' -f ((Get-Item $ZipPath).Length / 1MB)
+Write-Host ''
+Write-Host ("  {0,-40} {1}" -f $ZipName, $mb) -ForegroundColor Green
 Write-Host ''
 Write-Host "输出目录: $Release"

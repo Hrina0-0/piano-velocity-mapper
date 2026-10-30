@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-打包成绿色版单文件 exe
-======================
+打包成单文件 exe
+================
 
     python build_exe.py
 
@@ -27,14 +27,37 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP_NAME = "PianoVelocityMapper"
 
+# CI runner 的控制台代码页可能是 cp1252，直接 print 中文会抛 UnicodeEncodeError。
+# 统一把 stdout 换成「UTF-8 + 出错时替换」，保证任何环境下都能跑完。
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except Exception:  # pragma: no cover - 老 Python 没有 reconfigure
+    pass
+
+
+def _python_exe() -> str:
+    """用哪个 Python 打包。
+
+    优先用「当前正在跑的这个解释器」——本地是 .venv\Scripts\python.exe，
+    GitHub Actions 上是 runner 自带的 python（依赖已经装在它里面了）。
+    不要再强制要求 .venv 存在，否则 CI 一定挂。
+    """
+    return sys.executable or "python"
+
 
 def main() -> int:
-    if not os.path.isdir(os.path.join(HERE, ".venv", "Scripts")):
-        print("没有 .venv，请先跑 setup.cmd 或手动建虚拟环境。")
+    py = _python_exe()
+    try:
+        import PyInstaller  # noqa: F401
+    except ImportError:
+        print("当前 Python 里没有 PyInstaller。\n"
+              "请先执行：pip install pyinstaller")
         return 1
 
-    py = os.path.join(HERE, ".venv", "Scripts", "python.exe")
     icon = os.path.join(HERE, "app.ico")
+    if not os.path.isfile(icon):
+        print(f"找不到图标：{icon}")
+        return 1
 
     for d in ("build", "dist"):
         shutil.rmtree(os.path.join(HERE, d), ignore_errors=True)

@@ -26,6 +26,7 @@ import sys
 import threading
 import time
 import tkinter as tk
+import tkinter.font as tkfont
 from ctypes import wintypes
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -434,15 +435,18 @@ class Dropdown(tk.Frame):
     """深色下拉选择器：点击弹出浮层列表（比 ttk.Combobox 好看且可完全控制配色）。
 
     MIDI 端口一多，列表就会比屏幕能放下的高度还长，靠后的几项直接跑到屏幕
-    外面去，既看不见也点不着。这里做了三件事：
+    外面去，既看不见也点不着。这里做了四件事：
     1. 屏幕下方放不下就改为向上弹出；
     2. 还是放不下就只显示放得下的那几行；
-    3. 剩下的行用滚轮 / 上下键 / 右侧滚动条翻动，滚动时浮层原地重画（不闪）。
+    3. 剩下的行用滚轮 / 上下键 / PageUp·PageDown·Home·End / 右侧滚动条翻动；
+    4. 行高按字体实测、行控件复用不重建 —— 滚动跟手、不闪、也不丢滚轮事件。
     """
 
-    MAX_ROWS = 9
-    ROW_H = 30
+    MAX_ROWS = 14        # 最多同时显示多少行（再按屏幕实际空间往下收缩）
+    ROW_PAD_Y = 6        # 每行上下内边距
     SB_W = 7
+    MIN_W = 150          # 浮层最小宽
+    MAX_W = 460          # 浮层最大宽（端口名太长时也不至于看不全）
 
     def __init__(self, master: tk.Misc, values: List[str], value: str,
                  on_change: Callable[[str], None], width: int = 240,
@@ -466,6 +470,9 @@ class Dropdown(tk.Frame):
         self._rows_shown = 0
         self._hover = -1
         self._body: Optional[tk.Frame] = None
+        self._rows: List[tk.Label] = []     # 复用的行控件（滚动时只改内容，不重建）
+        self._row_h = 0                     # 实测出来的行高
+        self._wheel_acc = 0                 # 滚轮 delta 累积器
         self._sb: Optional[tk.Canvas] = None
         self._sb_needed = False
         self._sb_drag_from = 0
@@ -503,6 +510,7 @@ class Dropdown(tk.Frame):
         self._rows_shown = 0
         self._hover = -1
         self._body = None
+        self._rows = []
         self._sb = None
         self._sb_needed = False
         if popup is not None:
@@ -516,6 +524,31 @@ class Dropdown(tk.Frame):
     # 浮层
     # ------------------------------------------------------------------ #
 
+    def _measure_row_h(self) -> int:
+        """量出这一行真实有多高。
+
+        之前这里写死 30px，可 9 号字体的行 + 上下各 6px 内边距实际是 33px，
+        于是浮层比内容矮 3px/行，9 行下来最后一行会被裁掉半截。
+        """
+        probe = tk.Label(self, text="Mg", font=F(9), anchor="w",
+                         padx=px(10), pady=px(self.ROW_PAD_Y))
+        try:
+            h = probe.winfo_reqheight()
+        finally:
+            probe.destroy()
+        return max(px(20), h)
+
+    def _popup_width(self) -> int:
+        """浮层宽度：至少跟控件一样宽，长端口名也尽量放得下。"""
+        w = max(self.winfo_width(), px(self.MIN_W))
+        try:
+            font = tkfont.Font(font=F(9))
+            need = max((font.measure(v) for v in self._values), default=0) + px(34)
+            w = max(w, need)
+        except Exception:
+            pass
+        return min(w, px(self.MAX_W))
+
     def _open(self) -> None:
         if not self._values:
             return
@@ -523,8 +556,10 @@ class Dropdown(tk.Frame):
         popup.wm_overrideredirect(True)
         self._popup = popup
 
-        row_h = px(self.ROW_H)
-        w = max(self.winfo_width(), px(150))
+        row_h = self._measure_row_h()
+        self._row_h = row_h
+        self._wheel_acc = 0
+        w = self._popup_width()
         x = self.winfo_rootx()
         screen_h = self.winfo_screenheight()
 
@@ -562,7 +597,22 @@ class Dropdown(tk.Frame):
 
         body = tk.Frame(inner, bg=CARD)
         body.pack(side="left", fill="both", expand=True)
+        body.grid_columnconfigure(0, weight=1)
         self._body = body
+
+        # 行控件一次建好、以后只改文字和颜色。
+        # 之前每次滚动都 destroy 重建，正在接收滚轮事件的那一行被销毁，
+        # 同一次滚动的后续事件就全丢了 —— 表现成「滚一下只动一行 / 滚不动」。
+        self._rows = []
+        for i in range(rows):
+            row = tk.Label(body, text="", bg=CARD, fg=TEXT_DIM, font=F(9),
+                           anchor="w", cursor="hand2",
+                           padx=px(10), pady=px(self.ROW_PAD_Y))
+            row.grid(row=i, column=0, sticky="ew")
+            row.bind("<Button-1>", lambda _e, r=row: self._pick_row(r))
+            row.bind("<Enter>", lambda _e, r=row: self._hover_row(r))
+            row.bind("<MouseWheel>", self._wheel)
+            self._rows.append(row)
 
         self._sb = tk.Canvas(inner, width=px(self.SB_W), bg=CARD_HI,
                              highlightthickness=0, bd=0)
@@ -572,6 +622,7 @@ class Dropdown(tk.Frame):
             self._sb.bind("<Configure>", lambda _e: self._draw_scrollbar())
             self._sb.bind("<Button-1>", self._sb_press)
             self._sb.bind("<B1-Motion>", self._sb_drag)
+            self._sb.bind("<MouseWheel>", self._wheel)
 
         self._fill_rows()
         try:
@@ -585,6 +636,10 @@ class Dropdown(tk.Frame):
         popup.bind("<MouseWheel>", self._wheel)
         popup.bind("<Up>", lambda _e: self._move(-1))
         popup.bind("<Down>", lambda _e: self._move(1))
+        popup.bind("<Prior>", lambda _e: self._page(-1))     # PageUp
+        popup.bind("<Next>", lambda _e: self._page(1))       # PageDown
+        popup.bind("<Home>", lambda _e: self._jump(0))
+        popup.bind("<End>", lambda _e: self._jump(len(self._values) - 1))
         popup.bind("<Return>", self._enter)
         try:
             popup.grab_set()   # grab 之后，点击浮层外部的事件也被重定向到浮层 -> 触发关闭
@@ -593,31 +648,37 @@ class Dropdown(tk.Frame):
         popup.focus_force()
 
     def _fill_rows(self) -> None:
-        """按当前偏移重画可见行（滚动时复用同一个浮层，不闪）。"""
-        body = self._body
-        if body is None:
+        """按当前偏移刷新可见行的内容（控件复用，不重建）。"""
+        rows = self._rows
+        if not rows:
             return
-        for child in body.winfo_children():
-            child.destroy()
-        rows = self._rows_shown
-        for i in range(rows):
+        for i, row in enumerate(rows):
             idx = self._offset + i
             if idx >= len(self._values):
-                break
+                row.grid_remove()
+                continue
+            row.grid(row=i, column=0, sticky="ew")
             name = self._values[idx]
             sel = name == self._value
             hov = idx == self._hover
-            row = tk.Label(body,
-                           text=("✓  " if sel else "    ") + name,
-                           bg=ACCENT_DIM if sel else (CARD_HI if hov else CARD),
-                           fg=TEXT if (sel or hov) else TEXT_DIM,
-                           font=F(9), anchor="w", cursor="hand2",
-                           padx=px(10), pady=px(6))
-            row.pack(fill="x")
-            row.bind("<Button-1>", lambda _e, n=name: self._pick(n))
-            row.bind("<Enter>", lambda _e, r=row, s=sel:
-                     r.configure(bg=ACCENT_DIM if s else CARD_HI))
-            row.bind("<MouseWheel>", self._wheel)
+            row._vidx = idx
+            row.configure(text=("✓  " if sel else "    ") + name,
+                          bg=ACCENT_DIM if sel else (CARD_HI if hov else CARD),
+                          fg=TEXT if (sel or hov) else TEXT_DIM)
+
+    def _pick_row(self, row: tk.Label) -> str:
+        idx = getattr(row, "_vidx", -1)
+        if 0 <= idx < len(self._values):
+            return self._pick(self._values[idx])
+        return "break"
+
+    def _hover_row(self, row: tk.Label) -> None:
+        idx = getattr(row, "_vidx", -1)
+        if idx < 0:
+            return
+        self._hover = idx
+        sel = self._values[idx] == self._value
+        row.configure(bg=ACCENT_DIM if sel else CARD_HI)
 
     # ------------------------------------------------------------------ #
     # 滚动
@@ -636,9 +697,28 @@ class Dropdown(tk.Frame):
         self._draw_scrollbar()
 
     def _wheel(self, e: Any) -> str:
+        """滚轮：一格滚一行。
+
+        delta 先累积再取整整倍，触控板那种细滚动（delta 小）也能连续滚，
+        而普通鼠标一格（120）刚好滚一行。
+        """
         if len(self._values) <= self._rows_shown:
+            self._wheel_acc = 0
             return "break"
-        self._scroll_by(-1 if e.delta > 0 else 1)
+        delta = int(getattr(e, "delta", 0) or 0)
+        if delta == 0:
+            # X11 风格的 Button-4 / Button-5
+            num = int(getattr(e, "num", 0) or 0)
+            if num not in (4, 5):
+                return "break"
+            self._scroll_by(-1 if num == 4 else 1)
+            return "break"
+        self._wheel_acc += delta
+        steps = int(self._wheel_acc / 120)
+        if steps:
+            self._wheel_acc -= steps * 120
+            # delta > 0 是往上滚（看更前面的项），offset 要减小，所以取反
+            self._scroll_by(-steps)
         return "break"
 
     def _move(self, delta: int) -> str:
@@ -647,14 +727,37 @@ class Dropdown(tk.Frame):
             return "break"
         cur = self._hover if self._hover >= 0 else self._current_index()
         self._hover = max(0, min(n - 1, cur + delta))
-        if self._hover < self._offset:
-            self._offset = self._hover
-        elif self._hover >= self._offset + self._rows_shown:
-            self._offset = self._hover - self._rows_shown + 1
+        self._reveal(self._hover)
+        return "break"
+
+    def _page(self, direction: int) -> str:
+        """PageUp / PageDown：整屏翻。"""
+        n = len(self._values)
+        if n == 0:
+            return "break"
+        cur = self._hover if self._hover >= 0 else self._current_index()
+        self._hover = max(0, min(n - 1, cur + direction * max(1, self._rows_shown - 1)))
+        self._reveal(self._hover)
+        return "break"
+
+    def _jump(self, index: int) -> str:
+        """Home / End：跳到第一项 / 最后一项。"""
+        n = len(self._values)
+        if n == 0:
+            return "break"
+        self._hover = max(0, min(n - 1, index))
+        self._reveal(self._hover)
+        return "break"
+
+    def _reveal(self, index: int) -> None:
+        """把第 index 项滚进可见区域。"""
+        if index < self._offset:
+            self._offset = index
+        elif index >= self._offset + self._rows_shown:
+            self._offset = index - self._rows_shown + 1
         self._clamp_offset()
         self._fill_rows()
         self._draw_scrollbar()
-        return "break"
 
     def _current_index(self) -> int:
         if self._value in self._values:

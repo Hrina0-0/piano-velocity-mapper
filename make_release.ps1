@@ -69,6 +69,9 @@ Get-ChildItem $Release -Filter '*.zip' -File -ErrorAction SilentlyContinue | For
 }
 Compress-Archive -Path (Join-Path $PackDir '*') -DestinationPath $ZipPath -CompressionLevel Optimal
 
+# 临时目录用完就清掉，release\ 里只留这一个 zip
+Remove-Dir $PackDir
+
 $mb = '{0:N1} MB' -f ((Get-Item $ZipPath).Length / 1MB)
 Write-Host ''
 Write-Host ("  {0,-40} {1}" -f $ZipName, $mb) -ForegroundColor Green

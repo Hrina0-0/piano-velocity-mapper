@@ -92,7 +92,9 @@ if ($tags.Count -gt 0) {
     Write-Host '       该仓库下没有 Release' -ForegroundColor Yellow
 }
 
-$linked = @(& $gh api "repos/$NewName/$RepoName/commits" --paginate --jq '.[].author.login' 2>$null |
+# 提交署名归属：注意 gh 的 --paginate 与 --jq 同用会返回空行，
+# 这里改用 per_page=100 单页取回（一页足够覆盖绝大多数仓库）。
+$linked = @(& $gh api "repos/$NewName/$RepoName/commits?per_page=100" --jq '.[].author.login' 2>$null |
     Where-Object { $_ -and $_ -ne 'null' } | Sort-Object -Unique)
 if ($linked.Count -gt 0) {
     Write-Host "       提交署名归属: $($linked -join ', ')" -ForegroundColor DarkGray

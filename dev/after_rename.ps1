@@ -73,23 +73,32 @@ try {
 }
 
 # 附件下载：走 API 取真实 URL，避免猜错
-$assets = & $gh release list --repo "$NewName/$RepoName" --limit 5 --json tagName --jq '.[].tagName' 2>$null
-if ($assets) {
-    $tag = $assets[0]
-    $dl = & $gh release view $tag --repo "$NewName/$RepoName" --json assets --jq '.assets[0].url' 2>$null
-    if ($dl) {
+# 注意：@() 强制成数组，否则只有一条记录时 $tags[0] 取到的是首字符而不是整个 tag
+$tags = @(& $gh release list --repo "$NewName/$RepoName" --limit 5 --json tagName --jq '.[].tagName' 2>$null)
+if ($tags.Count -gt 0) {
+    $tag = $tags[0]
+    $dl = @(& $gh release view $tag --repo "$NewName/$RepoName" --json assets --jq '.assets[0].url' 2>$null)
+    if ($dl.Count -gt 0 -and $dl[0]) {
         try {
-            $r2 = Invoke-WebRequest -Uri $dl -Method Head -MaximumRedirection 5 -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
-            Write-Host "       附件下载 HTTP $($r2.StatusCode)  ($dl)" -ForegroundColor DarkGray
+            $r2 = Invoke-WebRequest -Uri $dl[0] -Method Head -MaximumRedirection 5 -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
+            Write-Host "       附件下载 HTTP $($r2.StatusCode)  ($($dl[0]))" -ForegroundColor DarkGray
         } catch {
             Write-Host "       附件下载失败: $($_.Exception.Message)" -ForegroundColor Yellow
         }
+    } else {
+        Write-Host "       未取到附件 URL（tag=$tag）" -ForegroundColor Yellow
     }
+} else {
+    Write-Host '       该仓库下没有 Release' -ForegroundColor Yellow
 }
 
-$linked = & $gh api "repos/$NewName/$RepoName/commits" --jq '.[].author.login // "NONE"' 2>$null |
-    Sort-Object -Unique
-Write-Host "       提交署名归属: $($linked -join ', ')" -ForegroundColor DarkGray
+$linked = @(& $gh api "repos/$NewName/$RepoName/commits" --paginate --jq '.[].author.login' 2>$null |
+    Where-Object { $_ -and $_ -ne 'null' } | Sort-Object -Unique)
+if ($linked.Count -gt 0) {
+    Write-Host "       提交署名归属: $($linked -join ', ')" -ForegroundColor DarkGray
+} else {
+    Write-Host '       未取到提交署名归属（可能全部提交都没有可关联的 GitHub 账号）' -ForegroundColor Yellow
+}
 
 Write-Host ''
 Write-Host '=== 完成 ===' -ForegroundColor Cyan

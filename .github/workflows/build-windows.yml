@@ -60,12 +60,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: release/PianoVelocityMapper-v*.zip
-          body: |
-            解压双击 `PianoVelocityMapper.exe` 就能用，**不需要装 Python**。
-
-            首次运行会解压依赖，慢一两秒属正常。
-
-            需要一个虚拟 MIDI 端口（loopMIDI 等）：
-            https://www.tobias-erichsen.de/software/loopmidi.html
-
-            源码在这个仓库里（MIT 许可）：右上角 Code → Download ZIP。
+          # 发布说明统一放在 docs/release-notes.md，改版本时改这一个文件即可。
+          # 注意：不要把说明内嵌在 workflow 里 —— 每次推 tag 都会用这里的文本
+          # 覆盖 Release 页面，手写的详细说明会被冲掉。
+          body_path: docs/release-notes.md

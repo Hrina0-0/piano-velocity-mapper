@@ -63,7 +63,7 @@ Copy-Item -Recurse <原项目目录> <副本目录>
 
 ```powershell
 .\.venv\Scripts\python.exe build_exe.py          # 单文件 exe
-powershell -ExecutionPolicy Bypass -File make_release.ps1 -Version 1.3.0   # 一个分发包
+powershell -ExecutionPolicy Bypass -File make_release.ps1 -Version 1.3.1   # 一个分发包
 ```
 
 ### 4. 提交并推送
@@ -77,9 +77,9 @@ git push origin main
 ### 5. 打 tag 发 Release
 
 ```powershell
-git tag v1.3.0
-git push origin v1.3.0
-gh release create v1.3.0 --title "..." --notes-file <说明文件> PianoVelocityMapper-v1.3.0.zip
+git tag v1.3.1
+git push origin v1.3.1
+gh release create v1.3.1 --title "..." --notes-file <说明文件> PianoVelocityMapper-v1.3.1.zip
 ```
 
 **附件名用 ASCII**：中文文件名在 `uploads.github.com` 上会 404。所以包名统一用

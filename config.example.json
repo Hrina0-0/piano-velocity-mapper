@@ -1,5 +1,5 @@
 {
-  "input_port_substring": "Digital Piano",
+  "input_port_substring": "",
   "output_port": "loopMIDI Port",
   "max_input_velocity": 100,
   "curve_exponent": 1.0,

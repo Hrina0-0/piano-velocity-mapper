@@ -483,8 +483,17 @@ class Dropdown(tk.Frame):
             w.bind("<Button-1>", self._toggle)
 
     def _render(self) -> None:
-        self._btn.configure(text=self._value or tr("（无可用端口）", "(no ports available)"),
-                            fg=TEXT if self._value else TEXT_FADE)
+        if not self._value:
+            text, fg = tr("（无可用端口）", "(no ports available)"), TEXT_FADE
+        elif self._values and self._value not in self._values:
+            # 配置里记的端口在这台机器上根本不存在（换电脑 / 换键盘 /
+            # 以前版本把作者自己的设备名写成了默认值）。
+            # 别把它显示成一个正常选项 —— 标出来，用户才知道要重选。
+            text = trf("⚠ {name} · 未找到", "⚠ {name} · not found", name=self._value)
+            fg = WARN
+        else:
+            text, fg = self._value, TEXT
+        self._btn.configure(text=text, fg=fg)
 
     def set_values(self, values: List[str], value: str) -> None:
         self._values = list(values)
@@ -1645,8 +1654,13 @@ class App:
             return
         cfg = self.engine.config()
         cur_in = cfg["input_port_substring"]
-        # 输入端按「子串匹配」语义解析：优先显示实际连上的那个端口
-        match = next((n for n in inputs if cur_in.lower() in n.lower()), "")
+        # 输入端按「子串匹配」语义解析：优先显示实际连上的那个端口。
+        # 配置为空 = 自动模式：挑一个最像键盘的（不能直接用
+        # 「空串 in 端口名」去匹配，那样永远只会拿到列表里的第一个）。
+        if cur_in:
+            match = next((n for n in inputs if cur_in.lower() in n.lower()), "")
+        else:
+            match = vm.auto_pick_input_port(inputs) or ""
         cur_out = cfg["output_port"]
         out_match = cur_out if cur_out in outputs else next(
             (n for n in outputs if cur_out.lower() in n.lower()), "")
@@ -1656,14 +1670,15 @@ class App:
                 # 已有配置：设备可能只是暂时没插上。保留用户原来的设置，
                 # 千万别用列表里第一个把它覆盖掉——否则键盘插上之后
                 # 工具反而连错了口。引擎会每 2 秒自己重试。
+                # （下拉框会把找不到的端口标成「⚠ 未找到」，不会假装它有效。）
                 match = match or cur_in
                 out_match = out_match or cur_out
             else:
                 # 第一次运行（还没有 config.json）：帮用户挑一个。
-                # 输入端挑第一个「真实设备」（跳过虚拟口），输出端保持默认
-                # （loopMIDI Port）——那本来就是用户要用的口。
+                # 输入端挑最像键盘的那个；挑不出来就留空，
+                # 界面上会显示「（无可用端口）」，而不是编一个设备名上去。
                 if not match:
-                    match = _first_real_port(inputs) or (inputs[0] if inputs else cur_in)
+                    match = vm.auto_pick_input_port(inputs) or ""
                 if not out_match:
                     out_match = cur_out
 
@@ -2170,26 +2185,48 @@ class App:
             pass
 
     def _update_port_hint(self) -> None:
-        """端口卡片下面那行提示：当前输出是不是虚拟端口。"""
+        """端口卡片下面那行提示：输入端接上了没、输出端是不是虚拟端口。"""
         try:
             import midi_ports
             outs = midi_ports.list_outputs()
-            cur = self.engine.config().get("output_port", "")
+            ins = midi_ports.list_inputs()
+            cfg = self.engine.config()
+            cur = cfg.get("output_port", "")
+            cur_in = cfg.get("input_port_substring", "")
         except Exception:
             return
-        matched = next((n for n in outs
-                        if cur and cur.lower() in n.lower()), "")
-        try:
-            if not matched:
-                self.port_hint.configure(
-                    text=tr("没找到输出端口，请确认虚拟 MIDI 端口已打开", "Output port not found — make sure your virtual MIDI port is running"), fg=WARN)
-            elif midi_ports.looks_virtual(matched):
-                self.port_hint.configure(
-                    text=trf(f"虚拟端口「{matched}」· DAW 里请选同一个", f"Virtual port “{matched}” · pick the same one in your DAW"), fg=GOOD)
+        out_matched = next((n for n in outs
+                            if cur and cur.lower() in n.lower()), "")
+        # 输入端：配置为空 = 自动模式，按自动匹配的结果判断
+        if cur_in:
+            in_matched = next((n for n in ins
+                               if cur_in.lower() in n.lower()), "")
+        else:
+            in_matched = vm.auto_pick_input_port(ins) or ""
+        # 输入端优先：没键盘的话，下面的输出端说什么都没意义
+        if not in_matched:
+            if cur_in:
+                in_text = trf(f"没找到输入端口「{cur_in}」，请重新选择",
+                              f"Input port “{cur_in}” not found — please pick another")
             else:
-                self.port_hint.configure(
-                    text=trf(f"「{matched}」是硬件端口，DAW 收不到重映射后的力度", f"“{matched}” is a hardware port — your DAW won't get the remapped velocity"),
-                    fg=WARN)
+                in_text = tr("没有输入端口，请连接键盘后点「刷新端口」",
+                             "No input port — connect a keyboard and hit “Refresh ports”")
+        else:
+            in_text = ""
+        try:
+            if not out_matched:
+                out_text = tr("没找到输出端口，请确认虚拟 MIDI 端口已打开", "Output port not found — make sure your virtual MIDI port is running")
+                fg = WARN
+            elif midi_ports.looks_virtual(out_matched):
+                out_text = trf(f"虚拟端口「{out_matched}」· DAW 里请选同一个", f"Virtual port “{out_matched}” · pick the same one in your DAW")
+                fg = GOOD
+            else:
+                out_text = trf(f"「{out_matched}」是硬件端口，DAW 收不到重映射后的力度", f"“{out_matched}” is a hardware port — your DAW won't get the remapped velocity")
+                fg = WARN
+            if in_text:
+                out_text = f"{in_text} · {out_text}"
+                fg = WARN
+            self.port_hint.configure(text=out_text, fg=fg)
         except Exception:
             pass
 

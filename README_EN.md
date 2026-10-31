@@ -31,7 +31,7 @@ Grab it from the **[Releases](../../releases)** page:
 
 | Version | File | Size | What you get |
 | --- | --- | --- | --- |
-| **v1.3.1** | `PianoVelocityMapper-v1.3.1.zip` | ≈18 MB | Unzip, double-click — **no Python needed** |
+| **v1.3.2** | `PianoVelocityMapper-v1.3.2.zip` | ≈18 MB | Unzip, double-click — **no Python needed** |
 
 > The archive contains this tool only (a single exe) plus the docs — **no
 > third-party software**. You install a virtual MIDI port tool
@@ -189,7 +189,7 @@ python -m venv .venv
 .venv\Scripts\python build_exe.py
 
 # assemble the distribution archive (release\PianoVelocityMapper-v<version>.zip)
-powershell -ExecutionPolicy Bypass -File make_release.ps1 -Version 1.3.1
+powershell -ExecutionPolicy Bypass -File make_release.ps1 -Version 1.3.2
 ```
 
 GitHub Actions is included too: push a `v*` tag and it builds the package on

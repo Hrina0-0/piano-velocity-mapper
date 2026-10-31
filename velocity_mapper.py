@@ -53,12 +53,27 @@ DATA_DIR = _data_dir()
 _SINGLE_INSTANCE_MUTEX = None
 
 DEFAULT_CONFIG: Dict[str, Any] = {
-    "input_port_substring": "Digital Piano",
+    # 输入口留空 = 自动挑一个（以前这里写死成了作者自己的设备名
+    # "Digital Piano"，发给别人之后对方机器上根本没有这个设备，
+    # 界面上却一直显示它，看起来像坏了）。
+    "input_port_substring": "",
     "output_port": "loopMIDI Port",
     "max_input_velocity": 100,
     "curve_exponent": 1.0,
     "log_interval_sec": 2.0,
 }
+
+# 自动挑输入口时，这些词说明多半是真的钢琴 / 键盘
+_PIANO_HINTS = (
+    "piano", "keys", "keyboard", "keystation", "stage", "novation",
+    "yamaha", "roland", "casio", "korg", "nord", "kawai", "mediologic",
+    "arturia", "pandora", "synth", "digitalpiano",
+)
+
+# Windows 自带的那些口：看着像设备，其实不接任何键盘
+_SYSTEM_HINTS = (
+    "microsoft", "midi mapper", "gs wavetable", "xperience", "synthesizer",
+)
 
 
 def _check_single_instance(name: str = "Local\\PianoVelocityMapper") -> bool:
@@ -133,7 +148,8 @@ def validate_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
     out = dict(DEFAULT_CONFIG)
     out.update(cfg)
 
-    if not isinstance(out.get("input_port_substring"), str) or not out["input_port_substring"].strip():
+    # 空字符串是合法的：表示「自动挑一个输入口」，不是非法值
+    if not isinstance(out.get("input_port_substring"), str):
         _warn("input_port_substring", out.get("input_port_substring"), DEFAULT_CONFIG["input_port_substring"])
         out["input_port_substring"] = DEFAULT_CONFIG["input_port_substring"]
 
@@ -190,9 +206,48 @@ def list_output_names() -> List[str]:
         return []
 
 
+def auto_pick_input_port(names: List[str]) -> Optional[str]:
+    """从一个输入端口列表里自动挑一个最像键盘的。
+
+    优先级：名字像钢琴/键盘 > 真实设备（跳过虚拟口和 Windows 自带口）
+    > 列表第一个。全都挑不出来就返回 None。
+    """
+    if not names:
+        return None
+    low = [n.lower() for n in names]
+
+    # 1) 名字里带 piano / keys / keyboard 之类，多半就是真键盘
+    for i, n in enumerate(low):
+        if any(h in n for h in _PIANO_HINTS):
+            return names[i]
+
+    # 2) 排除虚拟口和 Windows 自带的口
+    try:
+        import midi_ports
+    except Exception:
+        midi_ports = None
+    for n in names:
+        if any(h in n.lower() for h in _SYSTEM_HINTS):
+            continue
+        if midi_ports is not None:
+            try:
+                if midi_ports.looks_virtual(n):
+                    continue
+            except Exception:
+                pass
+        return n
+
+    # 3) 实在没得挑，返回第一个
+    return names[0]
+
+
 def find_input_port(substring: str) -> Optional[str]:
-    sub = substring.strip().lower()
-    for name in list_input_names():
+    sub = (substring or "").strip().lower()
+    names = list_input_names()
+    if not sub:
+        # 没指定就自动挑一个
+        return auto_pick_input_port(names)
+    for name in names:
         if sub in name.lower():
             return name
     return None
@@ -454,6 +509,25 @@ def run_monitor(cfg: Dict[str, Any]) -> None:
 # 配置加载与入口
 # --------------------------------------------------------------------------- #
 
+# 旧版本把「Digital Piano」（作者自己那台琴的名字）写死成了默认输入口。
+# 发给别人之后，对方机器上根本没有这个设备，界面却一直显示着它，
+# 看起来像是坏了。升级时把这个遗留值清掉，改回自动匹配。
+_LEGACY_DEFAULT_INPUTS = ("digital piano",)
+
+
+def save_config(path: str, cfg: Dict[str, Any]) -> bool:
+    """把配置写回磁盘（原子替换，避免半截文件）。"""
+    try:
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, path)
+        return True
+    except OSError as exc:
+        print(trf(f"警告: 无法写入配置文件 {path}: {exc}", f"Warning: cannot write the config file {path}: {exc}"))
+        return False
+
+
 def load_config(path: str) -> Dict[str, Any]:
     if os.path.exists(path):
         try:
@@ -469,9 +543,22 @@ def load_config(path: str) -> Dict[str, Any]:
         print(trf(f"提示: 未找到配置文件 {path}，将使用默认配置。", f"Hint: config file {path} not found; using the default config."))
         user = {}
     cfg = validate_config(user)
+
+    # 清掉旧版本遗留的写死设备名，改成自动匹配
+    legacy = (cfg.get("input_port_substring") or "").strip().lower()
+    if legacy in _LEGACY_DEFAULT_INPUTS:
+        cfg["input_port_substring"] = ""
+        print(tr("提示: 配置里遗留的默认输入端口已清除，改为自动匹配。",
+                 "Hint: the legacy default input port was cleared; using auto-detection now."))
+        try:
+            save_config(path, cfg)
+        except Exception:
+            pass
+
     # 写成一行紧凑的摘要：JSON 原文在日志面板里会折成好几行，很难看
     print(tr("当前配置: 输入={} | 输出={} | 最大力度={} | 曲线={} | 日志间隔={}s", "Current config: input={} | output={} | max velocity={} | curve={} | log interval={}s").format(
-        cfg["input_port_substring"], cfg["output_port"], cfg["max_input_velocity"],
+        cfg["input_port_substring"] or tr("(自动)", "(auto)"),
+        cfg["output_port"], cfg["max_input_velocity"],
         cfg["curve_exponent"], cfg["log_interval_sec"]))
     return cfg
 

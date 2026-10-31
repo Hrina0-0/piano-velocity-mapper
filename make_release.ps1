@@ -7,7 +7,7 @@
     用法：
       powershell -ExecutionPolicy Bypass -File make_release.ps1
       powershell -ExecutionPolicy Bypass -File make_release.ps1 -SkipBuild
-      powershell -ExecutionPolicy Bypass -File make_release.ps1 -Version 1.3.1
+      powershell -ExecutionPolicy Bypass -File make_release.ps1 -Version 1.3.2
 #>
 
 param([switch]$SkipBuild, [string]$Version = "")

@@ -42,6 +42,19 @@ Grab it from the **[Releases](../../releases)** page:
 > Want to change the code? Use this repository (MIT): **Code → Download ZIP**,
 > or `git clone` and run `setup.cmd` (see [For developers](#-for-developers)).
 
+### What happens on the first launch
+
+- **Input port**: the tool picks one for you, preferring real keyboards whose
+  name contains `piano` / `keys` / `keyboard`. If it can't find one (your
+  keyboard isn't plugged in yet) it shows `(no ports available)` — hit
+  **Refresh ports** once it is. It never silently binds to a device that isn't
+  there.
+- **Output port**: defaults to `loopMIDI Port`. Without loopMIDI installed that
+  row shows `⚠ loopMIDI Port · not found`, and it connects on its own as soon
+  as you start loopMIDI.
+- The line under the Ports card spells out the current state, and the log panel
+  lists the **actually available** port names for you to pick from.
+
 ---
 
 ## 🤔 The problem it solves

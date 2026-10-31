@@ -1,4 +1,4 @@
-﻿<div align="center">
+<div align="center">
 
 <img src="docs/screenshot-zh.png" width="820" alt="钢琴力度重映射 · 界面截图">
 
@@ -31,7 +31,7 @@
 
 | 版本 | 文件 | 大小 | 说明 |
 | --- | --- | --- | --- |
-| **v1.2.0** | `PianoVelocityMapper-v1.2.0.zip` | ≈18 MB | 解压双击即用，**不需要装 Python** |
+| **v1.3.0** | `PianoVelocityMapper-v1.3.0.zip` | ≈18 MB | 解压双击即用，**不需要装 Python** |
 
 > 压缩包里只有本工具（单文件 exe）和说明文档，**不含任何第三方软件**。
 > 虚拟 MIDI 端口工具（loopMIDI）需要你自己从官网装一次，
@@ -170,7 +170,7 @@ python -m venv .venv
 .venv\Scripts\python build_exe.py
 
 # 组装分发包（release\PianoVelocityMapper-v<版本>.zip）
-powershell -ExecutionPolicy Bypass -File make_release.ps1 -Version 1.2.0
+powershell -ExecutionPolicy Bypass -File make_release.ps1 -Version 1.3.0
 ```
 
 仓库里还带了 GitHub Actions：推一个 `v*` 标签，就会自动在 Windows 上打包并把

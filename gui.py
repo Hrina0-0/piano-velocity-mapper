@@ -1180,6 +1180,12 @@ class App:
         self._last_rev = -1
         self._last_status = ""
         self._last_log_seq = -1
+        # 日志合并：连续相同的行只显示一行，后面标「×N」
+        self._log_last_text: Optional[str] = None
+        self._log_last_count = 0
+        self._log_last_line = 0
+        self._log_last_tag = ""
+        self._log_last_item: Optional[Dict[str, Any]] = None
         self._curve_key = None
         self._save_job: Optional[str] = None
 
@@ -1663,9 +1669,52 @@ class App:
             return "warn"
         if text.startswith(("[断开]", "[Disconnected]", "[错误]", "警告")):
             return "bad"
-        if text.startswith("[配置]", "[Config]"):
+        if text.startswith(("[配置]", "[Config]")):
             return "cfg"
         return ""
+
+    def _redraw_last_log_line(self) -> None:
+        """把日志框最后一行重画成「原文（×N）」。"""
+        no = self._log_last_line
+        item = self._log_last_item
+        if no <= 0 or item is None:
+            return
+        try:
+            # 整行删掉（含换行），再按「正文 -> 时间戳」的顺序插回去：
+            # Tk 的 insert 是「插在位置前」，所以后插的时间戳才会排在前面。
+            self.log.delete(f"{no}.0", f"{no + 1}.0")
+            suffix = f"（×{self._log_last_count}）" if self._log_last_count > 1 else ""
+            self.log.insert(f"{no}.0", item["text"] + suffix + "\n", self._log_last_tag)
+            if item.get("t"):
+                self.log.insert(f"{no}.0", item["t"] + "  ", "time")
+        except Exception:
+            pass
+
+    def _insert_log_items(self, items: List[Dict[str, Any]]) -> None:
+        """把日志条目写进日志框。
+
+        连续出现的**同一句话**会合并成一行并标「×N」——不然一条
+        「已最小化到后台」之类的提示能刷出几十行，把其它日志全淹掉。
+        """
+        for item in items:
+            text = item.get("text") or ""
+            if not text:
+                continue
+            if self._log_last_text is not None and text == self._log_last_text:
+                self._log_last_count += 1
+                self._redraw_last_log_line()
+                continue
+            tag = self._log_tag(text)
+            if item.get("t"):
+                self.log.insert("end", item["t"] + "  ", "time")
+            self.log.insert("end", text + "\n", tag)
+            self._log_last_text = text
+            self._log_last_count = 1
+            self._log_last_tag = tag
+            self._log_last_item = item
+            # Text 末尾永远多两行（一个空行 + 一个隐含的空行），
+            # 所以刚插入的这行 = end 的行号 - 2。
+            self._log_last_line = int(self.log.index("end").split(".")[0]) - 2
 
     def _reload_log(self) -> None:
         """重建界面后把历史日志重新灌回日志框。"""
@@ -1674,11 +1723,10 @@ class App:
                      if ln.get("text")]
             self.log.configure(state="normal")
             self.log.delete("1.0", "end")
-            for item in lines:
-                text = item["text"]
-                if item.get("t"):
-                    self.log.insert("end", item["t"] + "  ", "time")
-                self.log.insert("end", text + "\n", self._log_tag(text))
+            self._log_last_text = None
+            self._log_last_count = 0
+            self._log_last_line = 0
+            self._insert_log_items(lines)
             self.log.configure(state="disabled")
             self.log.see("end")
             self._last_log_seq = self.engine.log_seq
@@ -1702,24 +1750,24 @@ class App:
         self.log.configure(state="normal")
         if first:
             self.log.delete("1.0", "end")
+            self._log_last_text = None
+            self._log_last_count = 0
+            self._log_last_line = 0
         lines = [ln for ln in lines if ln.get("text")]
         if not lines:
             self.log.configure(state="disabled")
             return
-        for item in lines:
-            text = item["text"]
-            tag = self._log_tag(text)
-            if item.get("t"):
-                self.log.insert("end", item["t"] + "  ", "time")
-            self.log.insert("end", text + "\n", tag)
+        self._insert_log_items(lines)
         self.log.configure(state="disabled")
         self.log.see("end")
         # 引擎的 deque(maxlen=100) 会丢旧行，这里自己按窗口容量裁剪
         shown = int(self.log.index("end-1c").split(".")[0])
         if shown > self.LOG_LINES + 8:
+            cut = shown - self.LOG_LINES
             self.log.configure(state="normal")
-            self.log.delete("1.0", f"{shown - self.LOG_LINES}.0")
+            self.log.delete("1.0", f"{cut}.0")
             self.log.configure(state="disabled")
+            self._log_last_line -= cut       # 裁掉前面的行，行号要跟着挪
         self.log_hint.configure(text=trf(f"共 {min(shown, self.LOG_LINES)} 条", f"{min(shown, self.LOG_LINES)} lines"))
 
     # ------------------------------------------------------------------ #
@@ -1890,6 +1938,10 @@ class App:
 
     def _hide_to_tray(self, reason: str = "close") -> None:
         """收到「留在后台」。没有托盘图标就不能藏，否则用户找不回来。"""
+        if self._hidden_to_tray:
+            # 已经在后台了。窗口最小化时 <Unmap> 会连着触发好几次，
+            # 这里直接返回，别重复 withdraw、也别重复刷日志。
+            return
         if self._tray is None or not getattr(self._tray, "visible", False):
             # 托盘不可用：点关闭只能真退出；最小化的话就别管，保持最小化状态
             if reason == "close":

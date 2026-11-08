@@ -78,6 +78,9 @@ def main() -> int:
         "--hidden-import", "mido.backends.rtmidi",
         "--hidden-import", "pygame.midi",
         "--hidden-import", "pygame.gfxdraw",
+        # rtmidi 是 Cython 扩展（_rtmidi.*.pyd），整个包收进来，
+        # 免得打包后找不到扩展模块
+        "--collect-all", "rtmidi",
         # 运行时需要的只读资源
         "--add-data", f"{os.path.join(HERE, 'webui.html')}{os.pathsep}.",
         "--add-data", f"{icon}{os.pathsep}.",

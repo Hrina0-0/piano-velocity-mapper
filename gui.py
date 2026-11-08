@@ -1314,6 +1314,11 @@ class App:
         self._port_queue: "queue.Queue[tuple]" = queue.Queue()
         self._port_guide_shown = False
 
+        # 端口热插拔监测（后台线程 -> 队列 -> Tk 线程）
+        self._port_watch_queue: "queue.Queue[tuple]" = queue.Queue()
+        self._port_watch_stop = threading.Event()
+        self._last_port_lists: Optional[Tuple[List[str], List[str]]] = None
+
         # 界面语言（默认中文，按 ui_prefs.json 里的偏好）
         self._apply_lang_pref()
 
@@ -1327,6 +1332,7 @@ class App:
         self._start_tray()
         self._poll_tray()
         _start_activate_listener(self._on_activate_event)
+        self._start_port_watch()
         self._ensure_output_port()
 
     # ------------------------------------------------------------------ #
@@ -1646,12 +1652,63 @@ class App:
         self._flash_saved(tr("端口已更新，正在重连…", "Ports updated, reconnecting…"))
         self._last_rev = -1
 
-    def _sync_ports(self, initial: bool = False) -> None:
+    def _start_port_watch(self) -> None:
+        """后台线程定期枚举 MIDI 端口，列表一变就通知界面。
+
+        为什么需要它:
+            端口列表以前只在「程序启动」和「手点刷新端口」时读一次。
+            而 loopMIDI 这类虚拟端口通常恰恰是**程序开着之后**才建出来的，
+            于是用户看到的现象就是「一直停在等待设备的界面」。
+
+            这里每秒读一次（读一次只要一两毫秒）。列表变了才重画下拉框，
+            引擎那边本来就会每 2 秒自动重连，端口一出现就能自动接上。
+        """
+
+        def worker() -> None:
+            while not self._port_watch_stop.is_set():
+                try:
+                    ins = vm.list_input_names()
+                    outs = vm.list_output_names()
+                except Exception:
+                    ins, outs = [], []
+                try:
+                    self._port_watch_queue.put((ins, outs))
+                except Exception:
+                    pass
+                self._port_watch_stop.wait(1.0)
+
+        threading.Thread(target=worker, name="port-watch", daemon=True).start()
+
+    def _apply_port_lists(self, inputs: List[str], outputs: List[str]) -> None:
+        """端口列表有变化时刷新下拉框（已经在 Tk 线程）。"""
         try:
-            inputs, outputs = self.engine.ports()
-        except Exception as exc:
-            self.status.configure(text=trf(f"读取 MIDI 端口失败: {exc}", f"Failed to read MIDI ports: {exc}"))
-            return
+            prev = self._last_port_lists
+            cur = (list(inputs), list(outputs))
+            if prev is not None and cur == prev:
+                return
+            self._last_port_lists = cur
+            self._sync_ports(ports=cur)
+            if prev is None:
+                return
+            # 有设备出现了，说一声，省得用户以为程序卡住了
+            new_names = [n for n in inputs if n not in prev[0]]
+            new_names += [n for n in outputs if n not in prev[1]]
+            if new_names:
+                self.engine.log_external(
+                    trf(f"[端口] 检测到新的 MIDI 端口: {', '.join(new_names)}",
+                        f"[Ports] New MIDI port(s) detected: {', '.join(new_names)}"))
+        except Exception:
+            pass
+
+    def _sync_ports(self, initial: bool = False,
+                    ports: Optional[Tuple[List[str], List[str]]] = None) -> None:
+        if ports is None:
+            try:
+                ports = self.engine.ports()
+            except Exception as exc:
+                self.status.configure(text=trf(f"读取 MIDI 端口失败: {exc}", f"Failed to read MIDI ports: {exc}"))
+                return
+        inputs, outputs = ports
         cfg = self.engine.config()
         cur_in = cfg["input_port_substring"]
         # 输入端按「子串匹配」语义解析：优先显示实际连上的那个端口。
@@ -2022,6 +2079,14 @@ class App:
         try:
             while True:
                 self._handle_port_result(*self._port_queue.get_nowait())
+        except queue.Empty:
+            pass
+        except Exception:
+            pass
+        # 端口热插拔监测的结果也在这里取回
+        try:
+            while True:
+                self._apply_port_lists(*self._port_watch_queue.get_nowait())
         except queue.Empty:
             pass
         except Exception:

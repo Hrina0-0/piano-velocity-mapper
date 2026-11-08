@@ -213,14 +213,14 @@ well, uninstall loopMIDI separately.
 ## 11. Building a distribution
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File make_release.ps1 -Version 1.3.2
+powershell -ExecutionPolicy Bypass -File make_release.ps1 -Version 1.3.3
 ```
 
 This produces one archive in `release\`:
 
 | Archive | Contents | What the recipient does |
 | --- | --- | --- |
-| `PianoVelocityMapper-v1.3.2.zip` | `PianoVelocityMapper.exe` (≈18 MB) + docs | Unzip and double-click — no Python needed |
+| `PianoVelocityMapper-v1.3.3.zip` | `PianoVelocityMapper.exe` (≈18 MB) + docs | Unzip and double-click — no Python needed |
 
 The archive contains no third-party software: loopMIDI has to be installed from
 the official site, and afterwards the tool starts it automatically. The source

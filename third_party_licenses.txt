@@ -13,6 +13,15 @@
    主页：https://www.pygame.org
    源码：https://github.com/pygame/pygame
 
+3) python-rtmidi 1.5.8（含 RtMidi C++ 库）
+   许可：MIT License
+   主页：https://github.com/SpotlightKid/python-rtmidi
+   源码：https://github.com/SpotlightKid/python-rtmidi
+   RtMidi：https://www.music.mcgill.ca/~gary/rtmidi/index.html
+   版权：© 2012-2023 Christopher Arndt；RtMidi © 2003-2019 Gary P. Scavone
+   用途：作为 MIDI 后端，能实时枚举「程序运行期间才出现」的 MIDI 端口
+         （例如后启动的 loopMIDI）。装不上时程序会自动改用 pygame 后端。
+
 关于 LGPL 的说明
 ----------------
 pygame 以 LGPL 许可提供。LGPL 允许把使用它的程序作为目标代码分发，但要求：

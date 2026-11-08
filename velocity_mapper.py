@@ -101,15 +101,33 @@ def _check_single_instance(name: str = "Local\\PianoVelocityMapper") -> bool:
         return True
 
 
-def _setup_backend() -> None:
-    """选择可用的 MIDI 后端: 优先 python-rtmidi，其次 pygame(PortMidi)。"""
+def _setup_backend() -> str:
+    """选择可用的 MIDI 后端: 优先 python-rtmidi，其次 pygame(PortMidi)。
+
+    返回选中的后端名（如 "mido.backends.rtmidi"），方便日志与自检脚本核对。
+
+    为什么必须优先 rtmidi:
+        pygame(PortMidi) 在**进程初始化时**就把 MIDI 设备列表缓存住了。
+        也就是说，程序启动之后 loopMIDI 才新建的端口、之后才插上的键盘，
+        无论重试多少次都枚举不到 —— 界面会一直停在「等待设备」，
+        而日志里只有一句没头没尾的「未找到输出端口」。
+
+        rtmidi 每次都重新向系统要一遍端口列表，所以后开的设备能立刻看到。
+
+    光能 import 不算数：这个后端在某些机器上可能一用就炸
+    （比如 rtmidi 的 DLL 加载失败），所以先做一次真的枚举再决定用不用。
+    """
     for name in ("mido.backends.rtmidi", "mido.backends.pygame"):
         try:
             importlib.import_module(name)
             mido.set_backend(name)
-            return
+            # 真的列一次端口：坏掉的后端在这里就会被发现并跳过
+            mido.get_input_names()
+            mido.get_output_names()
         except Exception:
             continue
+        print(trf(f"MIDI 后端: {name}", f"MIDI backend: {name}"))
+        return name
     print(tr("错误: 没有可用的 MIDI 后端。请运行 start_mapper.bat 安装依赖。", "Error: no usable MIDI backend. Run start_mapper.bat to install the dependencies."), file=sys.stderr)
     sys.exit(2)
 

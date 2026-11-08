@@ -23,10 +23,13 @@ echo.
 rem ---------- 0. find a usable Python (3.10 - 3.13) ----------
 rem  pygame has no wheel for 3.14 yet, so 3.13 is the ceiling.
 set "PY="
-call :try_py python
+rem Prefer Python 3.12: python-rtmidi (the backend that can see MIDI ports
+rem that appear while the app is running) ships a prebuilt wheel for 3.12
+rem but not for 3.13, where pip would have to compile it.
+call :try_py py -3.12
+if not defined PY call :try_py python
 if not defined PY call :try_py python3
 if not defined PY call :try_py py -3.13
-if not defined PY call :try_py py -3.12
 if not defined PY call :try_py py -3.11
 if not defined PY call :try_py py -3.10
 if not defined PY call :try_py py
@@ -72,9 +75,29 @@ if not exist ".venv\Scripts\python.exe" goto :fail
 
 rem ---------- 2. dependencies ----------
 :deps
-echo [2/5] Installing dependencies (mido / pygame)...
+echo [2/5] Installing dependencies (mido / pygame / python-rtmidi)...
 ".venv\Scripts\python.exe" -m pip install --disable-pip-version-check -q -r requirements.txt
+if errorlevel 1 goto :deps_fallback
+goto :deps_ok
+
+rem python-rtmidi is OPTIONAL. It is the backend that can see MIDI ports
+rem that show up while this program is already running (loopMIDI started
+rem later, a keyboard plugged in later). It ships a prebuilt wheel for
+rem Python 3.12 but not for 3.13, where pip has to compile it - and that
+rem needs a C++ compiler the user may not have. Without it the app still
+rem works, it just cannot see ports that appear later.
+:deps_fallback
+echo.
+echo   The optional live MIDI backend (python-rtmidi) could not be installed.
+echo   Trying the core dependencies only...
+".venv\Scripts\python.exe" -m pip install --disable-pip-version-check -q -r requirements-core.txt
 if errorlevel 1 goto :no_wheel
+echo.
+echo   NOTE: the app still works, but MIDI ports that appear WHILE it is
+echo   running will not be picked up automatically. Install Python 3.12 ^(it
+echo   has a prebuilt wheel^) and run this file again, or just use the
+echo   ready-made .exe from the project's Releases page.
+:deps_ok
 
 rem ---------- 3. desktop shortcut ----------
 echo [3/5] Creating desktop shortcut...
@@ -131,8 +154,8 @@ exit /b 1
 :no_wheel
 echo.
 echo ERROR: Dependency install failed. Most likely the Python is too
-echo new - pygame has no wheel for 3.14. Install Python 3.13 and run
-echo this file again.
+echo new - pygame has no wheel for 3.14. Install Python 3.12 ^(best^)
+echo or 3.13 and run this file again.
 echo.
 pause
 exit /b 1

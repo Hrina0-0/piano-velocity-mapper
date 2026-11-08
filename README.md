@@ -31,7 +31,7 @@
 
 | 版本 | 文件 | 大小 | 说明 |
 | --- | --- | --- | --- |
-| **v1.3.2** | `PianoVelocityMapper-v1.3.2.zip` | ≈18 MB | 解压双击即用，**不需要装 Python** |
+| **v1.3.3** | `PianoVelocityMapper-v1.3.3.zip` | ≈18 MB | 解压双击即用，**不需要装 Python** |
 
 > 压缩包里只有本工具（单文件 exe）和说明文档，**不含任何第三方软件**。
 > 虚拟 MIDI 端口工具（loopMIDI）需要你自己从官网装一次，
@@ -47,6 +47,8 @@
   插上之后点「刷新端口」就行 —— 不会瞎连一个不存在的设备。
 - **输出端口**：默认是 `loopMIDI Port`。还没装 loopMIDI 的话，
   那一栏会显示 `⚠ loopMIDI Port · 未找到`，装好并打开就自动接上。
+- 端口列表**每秒自动重扫一次**：loopMIDI 后开、键盘后插，界面都会自己刷新，
+  不用手点「刷新端口」。
 - 端口卡片下面那行提示会说明当前状态；运行日志里也会列出**实际可用**的端口名，
   照着选最快。
 
@@ -137,7 +139,8 @@ Windows 上最常见的做法是 [loopMIDI](https://www.tobias-erichsen.de/softw
 
 **Q：窗口顶上显示「没找到输出端口」怎么办？**
 虚拟 MIDI 端口还没起来。装好 loopMIDI 并启动它，工具每 2 秒自动重试，不用重启本工具。
-点窗口右上角「刷新端口」也可以立刻重扫。
+端口列表每秒自动重扫一次，所以 loopMIDI **后启动也没问题** —— 界面会自己刷新，
+不用点「刷新端口」。
 
 **Q：怎么知道现在用的是不是虚拟端口？**
 窗口「端口」卡片下面那行提示会直接告诉你：
@@ -180,7 +183,7 @@ python -m venv .venv
 .venv\Scripts\python build_exe.py
 
 # 组装分发包（release\PianoVelocityMapper-v<版本>.zip）
-powershell -ExecutionPolicy Bypass -File make_release.ps1 -Version 1.3.2
+powershell -ExecutionPolicy Bypass -File make_release.ps1 -Version 1.3.3
 ```
 
 仓库里还带了 GitHub Actions：推一个 `v*` 标签，就会自动在 Windows 上打包并把

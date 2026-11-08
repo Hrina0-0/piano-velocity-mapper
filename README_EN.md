@@ -31,7 +31,7 @@ Grab it from the **[Releases](../../releases)** page:
 
 | Version | File | Size | What you get |
 | --- | --- | --- | --- |
-| **v1.3.2** | `PianoVelocityMapper-v1.3.2.zip` | ≈18 MB | Unzip, double-click — **no Python needed** |
+| **v1.3.3** | `PianoVelocityMapper-v1.3.3.zip` | ≈18 MB | Unzip, double-click — **no Python needed** |
 
 > The archive contains this tool only (a single exe) plus the docs — **no
 > third-party software**. You install a virtual MIDI port tool
@@ -52,6 +52,9 @@ Grab it from the **[Releases](../../releases)** page:
 - **Output port**: defaults to `loopMIDI Port`. Without loopMIDI installed that
   row shows `⚠ loopMIDI Port · not found`, and it connects on its own as soon
   as you start loopMIDI.
+- The port list is **re-scanned every second**: starting loopMIDI late or
+  plugging the keyboard in late is picked up automatically — no need to hit
+  **Refresh ports**.
 - The line under the Ports card spells out the current state, and the log panel
   lists the **actually available** port names for you to pick from.
 
@@ -155,8 +158,9 @@ MIDI input.
 
 **Q: The window says "output port not found".**
 Your virtual MIDI port isn't up yet. Install and start loopMIDI — the tool retries
-every 2 seconds, no restart needed. *Refresh ports* in the window forces an
-immediate rescan.
+every 2 seconds, no restart needed. The port list is re-scanned every second,
+so starting loopMIDI **late** works too: the window updates on its own and
+*Refresh ports* is no longer required.
 
 **Q: How do I know whether I'm using a virtual port?**
 The line under the *Ports* card tells you directly:
@@ -202,7 +206,7 @@ python -m venv .venv
 .venv\Scripts\python build_exe.py
 
 # assemble the distribution archive (release\PianoVelocityMapper-v<version>.zip)
-powershell -ExecutionPolicy Bypass -File make_release.ps1 -Version 1.3.2
+powershell -ExecutionPolicy Bypass -File make_release.ps1 -Version 1.3.3
 ```
 
 GitHub Actions is included too: push a `v*` tag and it builds the package on
